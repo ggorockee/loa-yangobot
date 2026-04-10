@@ -5,10 +5,10 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/woohalabs2/sybot/internal/command"
-	"github.com/woohalabs2/sybot/internal/lopec"
-	"github.com/woohalabs2/sybot/internal/lostark"
-	"github.com/woohalabs2/sybot/internal/ratelimit"
+	"github.com/woohalabs2/yangobot/internal/command"
+	"github.com/woohalabs2/yangobot/internal/lopec"
+	"github.com/woohalabs2/yangobot/internal/lostark"
+	"github.com/woohalabs2/yangobot/internal/ratelimit"
 )
 
 // KakaoRequest는 카카오 챗봇 서버로부터 전달되는 요청 구조체입니다.

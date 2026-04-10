@@ -1,4 +1,4 @@
-module github.com/woohalabs2/sybot
+module github.com/woohalabs2/yangobot
 
 go 1.22
 

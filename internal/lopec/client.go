@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/woohalabs2/sybot/internal/cache"
+	"github.com/woohalabs2/yangobot/internal/cache"
 )
 
 const (
@@ -89,7 +89,7 @@ func (c *Client) GetSpecPoint(ctx context.Context, name string) (*SpecData, erro
 		return nil, fmt.Errorf("create request: %w", err)
 	}
 	req.Header.Set("RSC", "1")
-	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; sybot/1.0)")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; yangobot/1.0)")
 
 	resp, err := c.http.Do(req)
 	if err != nil {

@@ -6,11 +6,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/woohalabs2/sybot/internal/cache"
-	"github.com/woohalabs2/sybot/internal/handler"
-	"github.com/woohalabs2/sybot/internal/lopec"
-	"github.com/woohalabs2/sybot/internal/lostark"
-	"github.com/woohalabs2/sybot/internal/ratelimit"
+	"github.com/woohalabs2/yangobot/internal/cache"
+	"github.com/woohalabs2/yangobot/internal/handler"
+	"github.com/woohalabs2/yangobot/internal/lopec"
+	"github.com/woohalabs2/yangobot/internal/lostark"
+	"github.com/woohalabs2/yangobot/internal/ratelimit"
 )
 
 func main() {
@@ -45,7 +45,7 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	log.Println("sybot listening on :8080")
+	log.Println("yangobot listening on :8080")
 	if err := srv.ListenAndServe(); err != nil {
 		log.Fatalf("server error: %v", err)
 	}
