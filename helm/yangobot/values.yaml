@@ -1,0 +1,23 @@
+replicaCount: 2
+
+image:
+  repository: sybot
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+service:
+  type: ClusterIP
+  port: 80
+
+redis:
+  addr: "redis:6379"
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "64Mi"
+  limits:
+    cpu: "500m"
+    memory: "256Mi"
+
+secretName: sybot-secrets
