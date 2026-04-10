@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/woohalabs2/sybot/internal/cache"
+	"github.com/woohalabs2/yangobot/internal/cache"
 )
 
 const (
