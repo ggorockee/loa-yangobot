@@ -1,0 +1,6 @@
+apiVersion: v2
+name: sybot
+description: 로스트아크 카카오 챗봇
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
