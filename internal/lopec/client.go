@@ -15,7 +15,7 @@ import (
 
 const (
 	lopecBaseURL = "https://lopec.kr/character/specPoint"
-	cacheTTL     = 5 * time.Minute
+	cacheTTL     = 10 * time.Minute
 	timeout      = 8 * time.Second
 )
 

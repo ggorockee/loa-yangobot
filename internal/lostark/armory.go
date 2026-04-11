@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // ─── 각인 약칭 ───────────────────────────────────────────────────
@@ -267,7 +268,16 @@ func (g *GearData) Format() string {
 
 // ─── API 호출 ─────────────────────────────────────────────────────
 
+const armoryCacheTTL = 5 * time.Minute
+
 func (c *Client) GetArmory(ctx context.Context, name string) (*GearData, error) {
+	cacheKey := "armory:" + name
+
+	var cached GearData
+	if err := c.cache.Get(ctx, cacheKey, &cached); err == nil {
+		return &cached, nil
+	}
+
 	endpoint := fmt.Sprintf("%s/armories/characters/%s", baseURL, url.PathEscape(name))
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
@@ -294,7 +304,9 @@ func (c *Client) GetArmory(ctx context.Context, name string) (*GearData, error) 
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
 
-	return buildGearData(&raw), nil
+	gear := buildGearData(&raw)
+	_ = c.cache.Set(ctx, cacheKey, gear, armoryCacheTTL)
+	return gear, nil
 }
 
 func buildGearData(raw *rawArmoryResp) *GearData {
