@@ -29,9 +29,11 @@ func main() {
 	limiter := ratelimit.New(10, 100) // 10 req/s per user, burst 100
 
 	kakaoHandler := handler.NewKakaoHandler(loaClient, lopecClient, limiter)
+	apiHandler := handler.NewAPIHandler(loaClient, lopecClient, limiter)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/webhook/kakao", kakaoHandler.Handle)
+	mux.Handle("/api/v1/", apiHandler) // 오픈채팅 봇(메신저봇R) plain-text API
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("ok"))
