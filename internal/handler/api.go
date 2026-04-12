@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"fmt"
+	"encoding/json"
 	"log"
 	"net"
 	"net/http"
@@ -12,7 +12,7 @@ import (
 	"github.com/woohalabs2/yangobot/internal/ratelimit"
 )
 
-// APIHandler는 카카오 오픈채팅 봇(메신저봇R)을 위한 plain-text REST API 핸들러입니다.
+// APIHandler는 카카오 오픈채팅 봇(메신저봇R)을 위한 JSON REST API 핸들러입니다.
 //
 // 엔드포인트:
 //
@@ -20,7 +20,8 @@ import (
 //	GET /api/v1/armory/{name}     — 군장 정보 (각인·카드·보석·아크그리드 포함, lopec 병합)
 //	GET /api/v1/lopec/{name}      — 로펙 스펙 점수
 //
-// 모든 응답은 text/plain; charset=utf-8 을 반환합니다.
+// 모든 응답은 application/json; charset=utf-8 을 반환합니다.
+// {"text": "..."} 형식으로 반환하여 메신저봇R의 Utils.getWebText() HTML 래핑 후에도 줄바꿈이 유지됩니다.
 type APIHandler struct {
 	loa     *lostark.Client
 	lopec   *lopec.Client
@@ -29,6 +30,14 @@ type APIHandler struct {
 
 func NewAPIHandler(loa *lostark.Client, lopec *lopec.Client, limiter *ratelimit.Limiter) *APIHandler {
 	return &APIHandler{loa: loa, lopec: lopec, limiter: limiter}
+}
+
+type apiResponse struct {
+	Text string `json:"text"`
+}
+
+func writeAPIText(w http.ResponseWriter, text string) {
+	json.NewEncoder(w).Encode(apiResponse{Text: text})
 }
 
 func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -54,7 +63,7 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	resource := parts[0]
 	name := strings.TrimSpace(parts[1])
 
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
 	switch resource {
 	case "character":
@@ -75,7 +84,7 @@ func (h *APIHandler) handleCharacter(w http.ResponseWriter, r *http.Request, nam
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
-	fmt.Fprint(w, info.Format())
+	writeAPIText(w, info.Format())
 }
 
 func (h *APIHandler) handleArmory(w http.ResponseWriter, r *http.Request, name string) {
@@ -92,7 +101,7 @@ func (h *APIHandler) handleArmory(w http.ResponseWriter, r *http.Request, name s
 		gear.LoaSpecPoint = lopecData.SpecPoint
 	}
 
-	fmt.Fprintf(w, "[%s] 군장\n%s", name, gear.Format())
+	writeAPIText(w, gear.Format())
 }
 
 func (h *APIHandler) handleLopec(w http.ResponseWriter, r *http.Request, name string) {
@@ -102,7 +111,7 @@ func (h *APIHandler) handleLopec(w http.ResponseWriter, r *http.Request, name st
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
-	fmt.Fprint(w, data.Format(name))
+	writeAPIText(w, data.Format(name))
 }
 
 // clientIP는 Istio/Envoy 프록시 뒤에서도 실제 클라이언트 IP를 추출합니다.
