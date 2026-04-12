@@ -1,4 +1,3 @@
-var TARGET_ROOMS = ["호들갑군단장", "생양테스트", "김우현"];
 var API_BASE = "https://yangobot.ggorockee.com/api/v1";
 
 // Utils.getWebText()가 HTML로 감싸서 반환하므로 body 텍스트만 추출 후 JSON 파싱
@@ -16,8 +15,6 @@ function parseResponse(html) {
 }
 
 function response(room, msg, sender, isGroupChat, replier, imageDB, packageName) {
-  if (TARGET_ROOMS.indexOf(room) === -1) return;
-
   var res, m;
 
   m = msg.match(/^[.·]군장\s+(.+)/);
