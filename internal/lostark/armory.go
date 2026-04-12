@@ -226,13 +226,15 @@ func (g *GearData) Format() string {
 		b.WriteString(fmt.Sprintf("\n직업각인\t%s\n", g.SecondClass))
 	}
 
-	// 전투력/로펙
+	// 전투력
 	combatPower := g.CombatPower
-	if combatPower == "" {
-		combatPower = "-"
+	if combatPower != "" {
+		b.WriteString(fmt.Sprintf("\n전투력\t%s\n", combatPower))
 	}
+
+	// 로펙 스펙점수
 	if g.LoaSpecPoint > 0 {
-		b.WriteString(fmt.Sprintf("\n전투력/로펙\t%s/%.2f\n", combatPower, g.LoaSpecPoint))
+		b.WriteString(fmt.Sprintf("로펙\t%.2f\n", g.LoaSpecPoint))
 	}
 
 	// 서버/길드
