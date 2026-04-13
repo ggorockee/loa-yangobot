@@ -65,34 +65,39 @@ func (r Result) SellAppropriate() (bidPrice, distribution, grossProfit int64) {
 }
 
 // Format은 카카오/API 응답용 텍스트를 반환합니다.
+//
+// 출력 순서: 경매소(이름 조회 시만) → 판매 → 직접사용
 func (r Result) Format() string {
 	var b strings.Builder
 
+	// ── 경매소 (이름 조회 시에만 표시) ──────────────────────────
 	if r.Auction != nil {
 		b.WriteString(fmt.Sprintf("| 경매소 (%s)\n", r.Auction.Name))
-		b.WriteString(fmt.Sprintf("* 현재가  %s\n", fmtGold(r.Auction.CurrentPrice)))
-		b.WriteString(fmt.Sprintf("* 최소가  %s\n", fmtGold(r.Auction.YDayPrice)))
+		b.WriteString(fmt.Sprintf("* 현재가     %s\n", fmtGold(r.Auction.CurrentPrice)))
+		b.WriteString(fmt.Sprintf("* 전일평균가  %s\n", fmtGold(r.Auction.YDayPrice)))
 		b.WriteString("\n")
 	}
 
-	directBid, directDist := r.DirectUse()
-	b.WriteString(fmt.Sprintf("| 직접사용 (%d인)\n", r.N))
-	b.WriteString(fmt.Sprintf("* 입찰적정가 %s\n", fmtGold(directBid)))
-	b.WriteString(fmt.Sprintf("* 분배금     %s\n", fmtGold(directDist)))
-
+	// ── 판매 ──────────────────────────────────────────────────
 	breakBid, breakDist, breakProfit := r.BreakEven()
-	b.WriteString("\n| 판매\n")
-	b.WriteString(fmt.Sprintf("* 수수료       %s\n", fmtGold(r.Fee())))
+	appBid, appDist, appProfit := r.SellAppropriate()
+
+	b.WriteString(fmt.Sprintf("| 판매 (%d인)\n", r.N))
+	b.WriteString(fmt.Sprintf("* 수수료     %s\n", fmtGold(r.Fee())))
 	b.WriteString("---\n")
-	b.WriteString(fmt.Sprintf("* 손익분기점   %s\n", fmtGold(breakBid)))
+	b.WriteString(fmt.Sprintf("< 손익분기점   %s >\n", fmtGold(breakBid)))
 	b.WriteString(fmt.Sprintf("* 분배금       %s\n", fmtGold(breakDist)))
 	b.WriteString(fmt.Sprintf("* 판매차익     %s\n", fmtGold(breakProfit)))
-
-	appBid, appDist, appProfit := r.SellAppropriate()
 	b.WriteString("---\n")
-	b.WriteString(fmt.Sprintf("* 입찰적정가   %s\n", fmtGold(appBid)))
-	b.WriteString(fmt.Sprintf("* 분배금       %s\n", fmtGold(appDist)))
-	b.WriteString(fmt.Sprintf("* 판매차익     %s", fmtGold(appProfit)))
+	b.WriteString(fmt.Sprintf("< 입찰적정가    %s >\n", fmtGold(appBid)))
+	b.WriteString(fmt.Sprintf("* 분배금        %s\n", fmtGold(appDist)))
+	b.WriteString(fmt.Sprintf("* 판매차익      %s\n", fmtGold(appProfit)))
+
+	// ── 직접사용 ──────────────────────────────────────────────
+	directBid, directDist := r.DirectUse()
+	b.WriteString("\n| 직접사용\n")
+	b.WriteString(fmt.Sprintf("< 입찰적정가 %s >\n", fmtGold(directBid)))
+	b.WriteString(fmt.Sprintf("* 분배금     %s", fmtGold(directDist)))
 
 	return b.String()
 }
