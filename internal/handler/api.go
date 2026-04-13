@@ -14,18 +14,51 @@ import (
 	"github.com/woohalabs2/yangobot/internal/ratelimit"
 )
 
-// HandleDistribute는 GET /api/v1/distribute/:n/:price 엔드포인트입니다.
+// HandleDistribute는 GET /api/v1/distribute/:n/:query 엔드포인트입니다.
+// :query가 숫자이면 직접 금액, 텍스트이면 각인서 이름으로 거래소 조회합니다.
 func (h *APIHandler) HandleDistribute(c fiber.Ctx) error {
 	ip := c.IP()
 	if !h.limiter.Allow(ip) {
 		return c.Status(fiber.StatusTooManyRequests).SendString("rate limit exceeded")
 	}
-	n, err1 := strconv.Atoi(c.Params("n"))
-	price, err2 := strconv.ParseInt(strings.ReplaceAll(c.Params("price"), ",", ""), 10, 64)
-	if err1 != nil || err2 != nil || (n != 4 && n != 8) || price <= 0 {
-		return c.Status(fiber.StatusBadRequest).SendString("usage: /api/v1/distribute/{4|8}/{price}")
+	n, err := strconv.Atoi(c.Params("n"))
+	if err != nil || (n != 4 && n != 8) {
+		return c.Status(fiber.StatusBadRequest).SendString("usage: /api/v1/distribute/{4|8}/{price|name}")
 	}
-	r := distribute.Result{N: n, Price: price}
+
+	rawQuery, _ := url.PathUnescape(c.Params("query"))
+	query := strings.TrimSpace(rawQuery)
+
+	// 숫자 여부 확인
+	price, priceErr := strconv.ParseInt(strings.ReplaceAll(query, ",", ""), 10, 64)
+	if priceErr == nil && price > 0 {
+		r := distribute.Result{N: n, Price: price}
+		return c.JSON(apiResponse{Text: r.Format()})
+	}
+
+	// 각인서 이름 조회
+	if query == "" {
+		return c.Status(fiber.StatusBadRequest).SendString("usage: /api/v1/distribute/{4|8}/{price|name}")
+	}
+	item, err := h.loa.GetMarketPrice(c.Context(), query)
+	if err != nil {
+		log.Printf("api/distribute market error [%s]: %v", query, err)
+		return c.Status(fiber.StatusNotFound).SendString(err.Error())
+	}
+	pricePerItem := item.PricePerItem()
+	if pricePerItem <= 0 {
+		return c.Status(fiber.StatusNotFound).SendString("거래 가능한 아이템이 없습니다.")
+	}
+	r := distribute.Result{
+		N:     n,
+		Price: pricePerItem,
+		Auction: &distribute.AuctionInfo{
+			Name:         item.Name,
+			Grade:        item.Grade,
+			CurrentPrice: pricePerItem,
+			YDayPrice:    item.YDayPricePerItem(),
+		},
+	}
 	return c.JSON(apiResponse{Text: r.Format()})
 }
 

@@ -120,8 +120,33 @@ func (h *KakaoHandler) Handle(c fiber.Ctx) error {
 		}
 		result = lostark.FormatExpeditionRaid(name, siblings)
 	case command.CmdDistribute:
-		r := distribute.Result{N: cmd.N, Price: cmd.Gold}
-		result = r.Format()
+		if cmd.Gold > 0 {
+			// 직접 금액 입력
+			r := distribute.Result{N: cmd.N, Price: cmd.Gold}
+			result = r.Format()
+		} else if len(cmd.Args) > 0 {
+			// 각인서 이름 조회
+			item, err := h.loa.GetMarketPrice(ctx, cmd.Args[0])
+			if err != nil {
+				log.Printf("market price error [%s]: %v", cmd.Args[0], err)
+				return c.JSON(simpleText("거래소 시세를 가져오지 못했습니다."))
+			}
+			pricePerItem := item.PricePerItem()
+			if pricePerItem <= 0 {
+				return c.JSON(simpleText("거래 가능한 아이템이 없습니다."))
+			}
+			r := distribute.Result{
+				N:     cmd.N,
+				Price: pricePerItem,
+				Auction: &distribute.AuctionInfo{
+					Name:         item.Name,
+					Grade:        item.Grade,
+					CurrentPrice: pricePerItem,
+					YDayPrice:    item.YDayPricePerItem(),
+				},
+			}
+			result = r.Format()
+		}
 	default:
 		result = "지원하지 않는 명령어입니다."
 	}

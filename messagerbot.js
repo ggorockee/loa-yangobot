@@ -45,12 +45,12 @@ function response(room, msg, sender, isGroupChat, replier, imageDB, packageName)
     return;
   }
 
-  // .ㄱㅁ8 49000 또는 .ㄱㅁ4 49000 — 분배금 계산
-  m = msg.match(/^[.·]ㄱㅁ([48])\s+([\d,]+)/);
+  // .ㄱㅁ8 49000 또는 .ㄱㅁ8 아드레날린 — 분배금 계산 (숫자: 직접 입력, 텍스트: 거래소 시세 조회)
+  m = msg.match(/^[.·]ㄱㅁ([48])\s+(.+)/);
   if (m) {
     var n = m[1];
-    var price = m[2].replace(/,/g, "");
-    res = parseResponse(Utils.getWebText(API_BASE + "/distribute/" + n + "/" + price));
+    var query = m[2].trim().replace(/,/g, "");
+    res = parseResponse(Utils.getWebText(API_BASE + "/distribute/" + n + "/" + encodeURIComponent(query)));
     replier.reply(res || "계산 중 오류가 발생했습니다.");
     return;
   }

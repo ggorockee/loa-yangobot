@@ -5,10 +5,19 @@ import (
 	"strings"
 )
 
+// AuctionInfo는 거래소 조회 시 표시할 시세 정보입니다.
+type AuctionInfo struct {
+	Name         string // 아이템 이름 (예: "아드레날린 각인서")
+	Grade        string // 등급 (예: "유물")
+	CurrentPrice int64  // 개당 현재 최저가
+	YDayPrice    int64  // 개당 전일 평균가
+}
+
 // Result는 분배금 계산 결과입니다.
 type Result struct {
-	N     int
-	Price int64
+	N       int
+	Price   int64
+	Auction *AuctionInfo // nil이면 직접 입력, non-nil이면 거래소 조회
 }
 
 // DirectUse는 직접사용 시나리오 결과입니다.
@@ -58,6 +67,13 @@ func (r Result) SellAppropriate() (bidPrice, distribution, grossProfit int64) {
 // Format은 카카오/API 응답용 텍스트를 반환합니다.
 func (r Result) Format() string {
 	var b strings.Builder
+
+	if r.Auction != nil {
+		b.WriteString(fmt.Sprintf("| 경매소 (%s)\n", r.Auction.Name))
+		b.WriteString(fmt.Sprintf("* 현재가  %s\n", fmtGold(r.Auction.CurrentPrice)))
+		b.WriteString(fmt.Sprintf("* 최소가  %s\n", fmtGold(r.Auction.YDayPrice)))
+		b.WriteString("\n")
+	}
 
 	directBid, directDist := r.DirectUse()
 	b.WriteString(fmt.Sprintf("| 직접사용 (%d인)\n", r.N))

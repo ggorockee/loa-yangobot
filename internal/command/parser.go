@@ -68,14 +68,17 @@ func Parse(utterance string) (*Command, error) {
 			n = 4
 		}
 		if len(parts) < 2 {
-			return nil, fmt.Errorf("금액을 입력해주세요. 예) %s 49000", parts[0])
+			return nil, fmt.Errorf("금액 또는 각인서 이름을 입력해주세요. 예) %s 49000 또는 %s 아드레날린", parts[0], parts[0])
 		}
 		raw := strings.ReplaceAll(parts[1], ",", "")
 		gold, err := strconv.ParseInt(raw, 10, 64)
-		if err != nil || gold <= 0 {
-			return nil, errors.New("올바른 금액을 입력해주세요. 예) .ㄱㅁ8 49000")
+		if err == nil && gold > 0 {
+			// 숫자 → 직접 금액 입력
+			return &Command{Type: CmdDistribute, N: n, Gold: gold}, nil
 		}
-		return &Command{Type: CmdDistribute, N: n, Gold: gold}, nil
+		// 텍스트 → 각인서 이름 조회
+		name := strings.Join(parts[1:], " ")
+		return &Command{Type: CmdDistribute, N: n, Args: []string{name}}, nil
 	default:
 		return nil, ErrUnknownCommand
 	}
