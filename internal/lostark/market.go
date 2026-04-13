@@ -13,12 +13,12 @@ const marketCacheTTL = 3 * time.Minute
 
 // MarketItem은 거래소 아이템 시세 정보입니다.
 type MarketItem struct {
-	Id              int    `json:"Id"`
-	Name            string `json:"Name"`
-	Grade           string `json:"Grade"`
-	BundleCount     int    `json:"BundleCount"`
-	CurrentMinPrice int64  `json:"CurrentMinPrice"`
-	YDayAvgPrice    int64  `json:"YDayAvgPrice"`
+	Id              int     `json:"Id"`
+	Name            string  `json:"Name"`
+	Grade           string  `json:"Grade"`
+	BundleCount     int     `json:"BundleCount"`
+	CurrentMinPrice int64   `json:"CurrentMinPrice"`
+	YDayAvgPrice    float64 `json:"YDayAvgPrice"` // API가 소수점 반환
 }
 
 // PricePerItem은 BundleCount로 나눈 개당 현재 최저가를 반환합니다.
@@ -30,13 +30,13 @@ func (m *MarketItem) PricePerItem() int64 {
 	return m.CurrentMinPrice / b
 }
 
-// YDayPricePerItem은 BundleCount로 나눈 개당 전일 평균가를 반환합니다.
+// YDayPricePerItem은 BundleCount로 나눈 개당 전일 평균가를 반환합니다 (반올림).
 func (m *MarketItem) YDayPricePerItem() int64 {
-	b := int64(m.BundleCount)
+	b := float64(m.BundleCount)
 	if b <= 0 {
 		b = 1
 	}
-	return m.YDayAvgPrice / b
+	return int64(m.YDayAvgPrice/b + 0.5)
 }
 
 type marketRequest struct {
