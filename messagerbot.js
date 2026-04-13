@@ -37,6 +37,13 @@ function response(room, msg, sender, isGroupChat, replier, imageDB, packageName)
     replier.reply(res || "캐릭터를 찾을 수 없습니다.");
     return;
   }
+
+  m = msg.match(/^[.·]원정대\s+(.+)/);
+  if (m) {
+    res = parseResponse(Utils.getWebText(API_BASE + "/expedition/" + encodeURIComponent(m[1].trim())));
+    replier.reply(res || "캐릭터를 찾을 수 없습니다.");
+    return;
+  }
 }
 
 function onCreate(savedInstanceState, activity) {}
