@@ -98,7 +98,8 @@ func FormatExpeditionRaid(queriedName string, chars []CharacterInfo) string {
 			lvl := parseItemLevel(ch.ItemAvgLevel)
 			for i, t := range raid.tiers {
 				if lvl >= t.minLevel {
-					counts[i]++
+					counts[i]++ // 최고 티어에만 카운트
+					break
 				}
 			}
 		}
