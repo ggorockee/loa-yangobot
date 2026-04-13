@@ -1,12 +1,11 @@
 package handler
 
 import (
-	"encoding/json"
 	"log"
-	"net"
-	"net/http"
+	"net/url"
 	"strings"
 
+	"github.com/gofiber/fiber/v3"
 	"github.com/woohalabs2/yangobot/internal/lopec"
 	"github.com/woohalabs2/yangobot/internal/lostark"
 	"github.com/woohalabs2/yangobot/internal/ratelimit"
@@ -16,12 +15,10 @@ import (
 //
 // 엔드포인트:
 //
-//	GET /api/v1/character/{name}  — 캐릭터 기본 정보
-//	GET /api/v1/armory/{name}     — 군장 정보 (각인·카드·보석·아크그리드 포함, lopec 병합)
-//	GET /api/v1/lopec/{name}      — 로펙 스펙 점수
-//
-// 모든 응답은 application/json; charset=utf-8 을 반환합니다.
-// {"text": "..."} 형식으로 반환하여 메신저봇R의 Utils.getWebText() HTML 래핑 후에도 줄바꿈이 유지됩니다.
+//	GET /api/v1/character/{name}   — 캐릭터 기본 정보
+//	GET /api/v1/armory/{name}      — 군장 정보 (각인·카드·보석·아크그리드 포함, lopec 병합)
+//	GET /api/v1/lopec/{name}       — 로펙 스펙 점수
+//	GET /api/v1/expedition/{name}  — 원정대 레이드 커트라인 카운트
 type APIHandler struct {
 	loa     *lostark.Client
 	lopec   *lopec.Client
@@ -36,112 +33,59 @@ type apiResponse struct {
 	Text string `json:"text"`
 }
 
-func writeAPIText(w http.ResponseWriter, text string) {
-	json.NewEncoder(w).Encode(apiResponse{Text: text})
-}
-
-func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// Istio 환경에서 실제 클라이언트 IP로 rate limit
-	ip := clientIP(r)
+func (h *APIHandler) Handle(c fiber.Ctx) error {
+	ip := c.IP()
 	if !h.limiter.Allow(ip) {
-		http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
-		return
+		return c.Status(fiber.StatusTooManyRequests).SendString("rate limit exceeded")
 	}
 
-	// /api/v1/{resource}/{name}
-	path := strings.TrimPrefix(r.URL.Path, "/api/v1/")
-	parts := strings.SplitN(path, "/", 2)
-	if len(parts) != 2 || strings.TrimSpace(parts[1]) == "" {
-		http.Error(w, "usage: /api/v1/{character|armory|lopec}/{name}", http.StatusBadRequest)
-		return
+	resource := c.Params("resource")
+	decoded, _ := url.PathUnescape(c.Params("name"))
+	name := strings.TrimSpace(decoded)
+	if name == "" {
+		return c.Status(fiber.StatusBadRequest).SendString("usage: /api/v1/{character|armory|lopec|expedition}/{name}")
 	}
-	resource := parts[0]
-	name := strings.TrimSpace(parts[1])
 
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	ctx := c.Context()
 
 	switch resource {
 	case "character":
-		h.handleCharacter(w, r, name)
-	case "armory":
-		h.handleArmory(w, r, name)
-	case "lopec":
-		h.handleLopec(w, r, name)
-	case "expedition":
-		h.handleExpedition(w, r, name)
-	default:
-		http.Error(w, "unknown resource: "+resource+"\nusage: /api/v1/{character|armory|lopec|expedition}/{name}", http.StatusNotFound)
-	}
-}
-
-func (h *APIHandler) handleCharacter(w http.ResponseWriter, r *http.Request, name string) {
-	info, err := h.loa.GetCharacter(r.Context(), name)
-	if err != nil {
-		log.Printf("api/character error [%s]: %v", name, err)
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	writeAPIText(w, info.Format())
-}
-
-func (h *APIHandler) handleArmory(w http.ResponseWriter, r *http.Request, name string) {
-	gear, err := h.loa.GetArmory(r.Context(), name)
-	if err != nil {
-		log.Printf("api/armory error [%s]: %v", name, err)
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-
-	// lopec에서 직업각인 + 스펙점수 병합 (실패해도 armory 응답은 정상 반환)
-	if lopecData, err := h.lopec.GetSpecPoint(r.Context(), name); err == nil {
-		gear.SecondClass = lopecData.SecondClass
-		gear.LoaSpecPoint = lopecData.SpecPoint
-	}
-
-	writeAPIText(w, gear.Format())
-}
-
-func (h *APIHandler) handleLopec(w http.ResponseWriter, r *http.Request, name string) {
-	data, err := h.lopec.GetSpecPoint(r.Context(), name)
-	if err != nil {
-		log.Printf("api/lopec error [%s]: %v", name, err)
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	writeAPIText(w, data.Format(name))
-}
-
-func (h *APIHandler) handleExpedition(w http.ResponseWriter, r *http.Request, name string) {
-	siblings, err := h.loa.GetSiblings(r.Context(), name)
-	if err != nil {
-		log.Printf("api/expedition error [%s]: %v", name, err)
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	writeAPIText(w, lostark.FormatExpeditionRaid(name, siblings))
-}
-
-// clientIP는 Istio/Envoy 프록시 뒤에서도 실제 클라이언트 IP를 추출합니다.
-// X-Forwarded-For → X-Real-IP → RemoteAddr 순으로 시도합니다.
-func clientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		// "client, proxy1, proxy2" 형식에서 첫 번째 IP 사용
-		if idx := strings.Index(xff, ","); idx != -1 {
-			return strings.TrimSpace(xff[:idx])
+		info, err := h.loa.GetCharacter(ctx, name)
+		if err != nil {
+			log.Printf("api/character error [%s]: %v", name, err)
+			return c.Status(fiber.StatusNotFound).SendString(err.Error())
 		}
-		return strings.TrimSpace(xff)
+		return c.JSON(apiResponse{Text: info.Format()})
+
+	case "armory":
+		gear, err := h.loa.GetArmory(ctx, name)
+		if err != nil {
+			log.Printf("api/armory error [%s]: %v", name, err)
+			return c.Status(fiber.StatusNotFound).SendString(err.Error())
+		}
+		if lopecData, err := h.lopec.GetSpecPoint(ctx, name); err == nil {
+			gear.SecondClass = lopecData.SecondClass
+			gear.LoaSpecPoint = lopecData.SpecPoint
+		}
+		return c.JSON(apiResponse{Text: gear.Format()})
+
+	case "lopec":
+		data, err := h.lopec.GetSpecPoint(ctx, name)
+		if err != nil {
+			log.Printf("api/lopec error [%s]: %v", name, err)
+			return c.Status(fiber.StatusNotFound).SendString(err.Error())
+		}
+		return c.JSON(apiResponse{Text: data.Format(name)})
+
+	case "expedition":
+		siblings, err := h.loa.GetSiblings(ctx, name)
+		if err != nil {
+			log.Printf("api/expedition error [%s]: %v", name, err)
+			return c.Status(fiber.StatusNotFound).SendString(err.Error())
+		}
+		return c.JSON(apiResponse{Text: lostark.FormatExpeditionRaid(name, siblings)})
+
+	default:
+		return c.Status(fiber.StatusNotFound).SendString("unknown resource: " + resource + "\nusage: /api/v1/{character|armory|lopec|expedition}/{name}")
 	}
-	if xri := r.Header.Get("X-Real-IP"); xri != "" {
-		return strings.TrimSpace(xri)
-	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return host
 }

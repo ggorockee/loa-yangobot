@@ -2,10 +2,10 @@ package main
 
 import (
 	"log"
-	"net/http"
 	"os"
 	"time"
 
+	"github.com/gofiber/fiber/v3"
 	"github.com/woohalabs2/yangobot/internal/cache"
 	"github.com/woohalabs2/yangobot/internal/handler"
 	"github.com/woohalabs2/yangobot/internal/lopec"
@@ -31,24 +31,20 @@ func main() {
 	kakaoHandler := handler.NewKakaoHandler(loaClient, lopecClient, limiter)
 	apiHandler := handler.NewAPIHandler(loaClient, lopecClient, limiter)
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/webhook/kakao", kakaoHandler.Handle)
-	mux.Handle("/api/v1/", apiHandler) // 오픈채팅 봇(메신저봇R) plain-text API
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
-	})
-
-	srv := &http.Server{
-		Addr:         ":8080",
-		Handler:      mux,
+	app := fiber.New(fiber.Config{
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  60 * time.Second,
-	}
+	})
+
+	app.Post("/webhook/kakao", kakaoHandler.Handle)
+	app.Get("/api/v1/:resource/:name", apiHandler.Handle)
+	app.Get("/healthz", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
 
 	log.Println("yangobot listening on :8080")
-	if err := srv.ListenAndServe(); err != nil {
+	if err := app.Listen(":8080"); err != nil {
 		log.Fatalf("server error: %v", err)
 	}
 }

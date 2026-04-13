@@ -1,10 +1,9 @@
 package handler
 
 import (
-	"encoding/json"
 	"log"
-	"net/http"
 
+	"github.com/gofiber/fiber/v3"
 	"github.com/woohalabs2/yangobot/internal/command"
 	"github.com/woohalabs2/yangobot/internal/lopec"
 	"github.com/woohalabs2/yangobot/internal/lostark"
@@ -47,82 +46,64 @@ func NewKakaoHandler(loa *lostark.Client, lopec *lopec.Client, limiter *ratelimi
 	return &KakaoHandler{loa: loa, lopec: lopec, limiter: limiter}
 }
 
-func (h *KakaoHandler) Handle(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
+func (h *KakaoHandler) Handle(c fiber.Ctx) error {
 	var req KakaoRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := c.Bind().JSON(&req); err != nil {
 		log.Printf("decode error: %v", err)
-		h.writeJSON(w, simpleText("요청을 처리할 수 없습니다."))
-		return
+		return c.JSON(simpleText("요청을 처리할 수 없습니다."))
 	}
 
 	userID := req.UserRequest.User.ID
 	if !h.limiter.Allow(userID) {
-		h.writeJSON(w, simpleText("현재 요청이 많아 처리가 어렵습니다.\n잠시 후 다시 이용해 주시면 감사하겠습니다."))
-		return
+		return c.JSON(simpleText("현재 요청이 많아 처리가 어렵습니다.\n잠시 후 다시 이용해 주시면 감사하겠습니다."))
 	}
 
 	cmd, err := command.Parse(req.UserRequest.Utterance)
 	if err != nil {
-		h.writeJSON(w, simpleText("알 수 없는 명령어입니다.\n사용법: /캐릭터 <닉네임>"))
-		return
+		return c.JSON(simpleText("알 수 없는 명령어입니다.\n사용법: /캐릭터 <닉네임>"))
 	}
 
+	ctx := c.Context()
 	var result string
+
 	switch cmd.Type {
 	case command.CmdCharacter:
-		info, err := h.loa.GetCharacter(r.Context(), cmd.Args[0])
+		info, err := h.loa.GetCharacter(ctx, cmd.Args[0])
 		if err != nil {
 			log.Printf("lostark API error: %v", err)
-			h.writeJSON(w, simpleText("캐릭터 정보를 가져오지 못했습니다."))
-			return
+			return c.JSON(simpleText("캐릭터 정보를 가져오지 못했습니다."))
 		}
 		result = info.Format()
 	case command.CmdSpec:
-		data, err := h.lopec.GetSpecPoint(r.Context(), cmd.Args[0])
+		data, err := h.lopec.GetSpecPoint(ctx, cmd.Args[0])
 		if err != nil {
 			log.Printf("lopec error: %v", err)
-			h.writeJSON(w, simpleText("스펙 점수를 가져오지 못했습니다."))
-			return
+			return c.JSON(simpleText("스펙 점수를 가져오지 못했습니다."))
 		}
 		result = data.Format(cmd.Args[0])
 	case command.CmdGear:
 		name := cmd.Args[0]
-		gear, err := h.loa.GetArmory(r.Context(), name)
+		gear, err := h.loa.GetArmory(ctx, name)
 		if err != nil {
 			log.Printf("armory error: %v", err)
-			h.writeJSON(w, simpleText("군장 정보를 가져오지 못했습니다."))
-			return
+			return c.JSON(simpleText("군장 정보를 가져오지 못했습니다."))
 		}
-		// lopec에서 직업각인 + 스펙점수 병합
-		if lopecData, err := h.lopec.GetSpecPoint(r.Context(), name); err == nil {
+		if lopecData, err := h.lopec.GetSpecPoint(ctx, name); err == nil {
 			gear.SecondClass = lopecData.SecondClass
 			gear.LoaSpecPoint = lopecData.SpecPoint
 		}
 		result = gear.Format()
 	case command.CmdExpedition:
 		name := cmd.Args[0]
-		siblings, err := h.loa.GetSiblings(r.Context(), name)
+		siblings, err := h.loa.GetSiblings(ctx, name)
 		if err != nil {
 			log.Printf("expedition error: %v", err)
-			h.writeJSON(w, simpleText("원정대 정보를 가져오지 못했습니다."))
-			return
+			return c.JSON(simpleText("원정대 정보를 가져오지 못했습니다."))
 		}
 		result = lostark.FormatExpeditionRaid(name, siblings)
 	default:
 		result = "지원하지 않는 명령어입니다."
 	}
 
-	h.writeJSON(w, simpleText(result))
-}
-
-func (h *KakaoHandler) writeJSON(w http.ResponseWriter, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(v); err != nil {
-		log.Printf("encode error: %v", err)
-	}
+	return c.JSON(simpleText(result))
 }
