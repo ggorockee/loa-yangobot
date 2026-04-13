@@ -38,6 +38,7 @@ func main() {
 	})
 
 	app.Post("/webhook/kakao", kakaoHandler.Handle)
+	app.Get("/api/v1/distribute/:n/:query", apiHandler.HandleDistribute)
 	app.Get("/api/v1/:resource/:name", apiHandler.Handle)
 	app.Get("/healthz", func(c fiber.Ctx) error {
 		return c.SendString("ok")
