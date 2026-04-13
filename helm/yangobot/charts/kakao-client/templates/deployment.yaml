@@ -1,0 +1,65 @@
+{{- if .Values.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kakao-client
+  labels:
+    app: kakao-client
+spec:
+  # Loco 프로토콜은 동일 계정 단일 세션만 허용 — 절대 1 이상으로 올리지 말 것
+  replicas: 1
+  # RollingUpdate 사용 시 구/신 pod 동시 기동 → 세션 충돌
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: kakao-client
+  template:
+    metadata:
+      labels:
+        app: kakao-client
+    spec:
+      containers:
+        - name: kakao-client
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: KAKAO_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretName }}
+                  key: kakao-email
+            - name: KAKAO_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretName }}
+                  key: kakao-password
+            - name: ADMIN_USER_IDS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretName }}
+                  key: admin-user-ids
+                  optional: true
+            - name: KAKAO_PASSCODE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretName }}
+                  key: kakao-passcode
+                  optional: true
+            - name: YANGOBOT_API_URL
+              value: {{ .Values.yanbotApiUrl | quote }}
+            - name: CREDENTIAL_PATH
+              value: "/data/credential.json"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: kakao-client-data
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+{{- end }}
