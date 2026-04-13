@@ -47,7 +47,7 @@ func (c *Client) checkAPIRateLimit(ctx context.Context) error {
 		return nil
 	}
 	if count > apiRateLimit {
-		return fmt.Errorf("Lost Ark API rate limit 초과 (%d/100 req/min)", count)
+		return fmt.Errorf("lost ark API rate limit 초과 (%d/100 req/min)", count)
 	}
 	return nil
 }
