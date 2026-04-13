@@ -4,37 +4,54 @@ import (
 	"testing"
 )
 
-func TestResult_8persons_49000(t *testing.T) {
+// TestDirectUse: 직접사용 입찰적정가 = floor(price × (n-1)/n)
+func TestDirectUse(t *testing.T) {
+	cases := []struct {
+		n, price  int
+		wantBid   int64
+		wantDist  int64
+	}{
+		// 8인, 49000: floor(49000×7/8) = floor(42875) = 42875
+		{8, 49000, 42875, 6125},
+		// 4인, 40000: floor(40000×3/4) = 30000
+		{4, 40000, 30000, 10000},
+		// 4인, 49000: floor(49000×3/4) = floor(36750) = 36750
+		{4, 49000, 36750, 12250},
+	}
+	for _, c := range cases {
+		r := Result{N: c.n, Price: int64(c.price)}
+		bid, dist := r.DirectUse()
+		if bid != c.wantBid {
+			t.Errorf("DirectUse(%d인, %d) bid: got %d, want %d", c.n, c.price, bid, c.wantBid)
+		}
+		if dist != c.wantDist {
+			t.Errorf("DirectUse(%d인, %d) dist: got %d, want %d", c.n, c.price, dist, c.wantDist)
+		}
+	}
+}
+
+// TestSellBid: 판매 입찰적정가 = floor(price × 0.95 × (n-1)/n)
+func TestSellBid(t *testing.T) {
+	// 8인, 49000: floor(49000×0.95×7/8) = floor(46550×7/8) = floor(40731.25) = 40731
 	r := Result{N: 8, Price: 49000}
 
-	t.Run("직접사용", func(t *testing.T) {
-		bid, dist := r.DirectUse()
-		if bid != 42875 {
-			t.Errorf("입찰적정가: got %d, want 42875", bid)
-		}
-		if dist != 6125 {
-			t.Errorf("분배금: got %d, want 6125", dist)
-		}
-	})
+	if got := r.Fee(); got != 2450 {
+		t.Errorf("Fee: got %d, want 2450", got)
+	}
 
-	t.Run("수수료", func(t *testing.T) {
-		if got := r.Fee(); got != 2450 {
-			t.Errorf("수수료: got %d, want 2450", got)
-		}
-	})
-
-	t.Run("손익분기점", func(t *testing.T) {
-		bid, dist, profit := r.BreakEven()
-		if bid != 40732 {
-			t.Errorf("손익분기점 bid: got %d, want 40732", bid)
-		}
-		if dist != 5818 {
-			t.Errorf("손익분기점 분배금: got %d, want 5818", dist)
-		}
-		if profit != 8268 {
-			t.Errorf("손익분기점 판매차익: got %d, want 8268", profit)
-		}
-	})
+	bid, dist, profit := r.SellBid()
+	// floor(46550 × 7/8) = floor(40731.25) = 40731
+	if bid != 40731 {
+		t.Errorf("SellBid bid: got %d, want 40731", bid)
+	}
+	// floor(40731/7) = 5818
+	if dist != 5818 {
+		t.Errorf("SellBid dist: got %d, want 5818", dist)
+	}
+	// 49000 - 40731 = 8269
+	if profit != 8269 {
+		t.Errorf("SellBid profit: got %d, want 8269", profit)
+	}
 }
 
 func TestFmtGold(t *testing.T) {
@@ -53,17 +70,5 @@ func TestFmtGold(t *testing.T) {
 		if got := fmtGold(c.in); got != c.want {
 			t.Errorf("fmtGold(%d) = %q, want %q", c.in, got, c.want)
 		}
-	}
-}
-
-func TestResult_4persons(t *testing.T) {
-	r := Result{N: 4, Price: 40000}
-
-	bid, dist := r.DirectUse()
-	if dist != 10000 {
-		t.Errorf("4인 분배금: got %d, want 10000", dist)
-	}
-	if bid != 30000 {
-		t.Errorf("4인 입찰적정가: got %d, want 30000", bid)
 	}
 }

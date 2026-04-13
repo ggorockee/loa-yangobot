@@ -13,12 +13,10 @@ type Result struct {
 
 // DirectUse는 직접사용 시나리오 결과입니다.
 //
-// 공식:
-//   - 분배금 = floor(price / n)
-//   - 입찰적정가 = price - 분배금
+// 공식: 입찰적정가 = floor(price × (n-1)/n)
 func (r Result) DirectUse() (bidPrice, distribution int64) {
-	distribution = r.Price / int64(r.N)
-	bidPrice = r.Price - distribution
+	bidPrice = r.Price * int64(r.N-1) / int64(r.N)
+	distribution = r.Price - bidPrice
 	return
 }
 
@@ -32,36 +30,14 @@ func (r Result) SellNet() int64 {
 	return r.Price - r.Fee()
 }
 
-// BreakEven는 손익분기점 시나리오 결과입니다.
+// SellBid는 판매 시나리오 입찰적정가 결과입니다.
 //
-// 손익분기점: 판매 순이익 = 타인 분배금
+// 공식: 입찰적정가 = floor(price × 0.95 × (n-1)/n)
 //
-//	sell_net - bid = floor(bid / (n-1))
-//
-// 공식:
-//   - 분배금 = floor(sell_net / n)
-//   - bid    = sell_net - 분배금
-func (r Result) BreakEven() (bidPrice, distribution, grossProfit int64) {
+// 거래소에서 판매할 때 수수료(5%) 제외 실수령액을 전체 인원이 공평하게 나눌 수 있는 입찰가.
+func (r Result) SellBid() (bidPrice, distribution, grossProfit int64) {
 	sellNet := r.SellNet()
-	distribution = sellNet / int64(r.N)
-	bidPrice = sellNet - distribution
-	grossProfit = r.Price - bidPrice
-	return
-}
-
-// SellAppropriate는 판매 입찰적정가 시나리오 결과입니다.
-//
-// TODO: 정확한 공식 확인 필요.
-// n=8, price=49000 기준 예상값 37,030 vs 현 공식 산출값 37,057 (27 차이).
-//
-// 현 공식: bid = floor(직접사용_입찰적정가 - sell_net / n)
-func (r Result) SellAppropriate() (bidPrice, distribution, grossProfit int64) {
-	sellNet := r.SellNet()
-	directBid, _ := r.DirectUse()
-	bidPrice = directBid - sellNet/int64(r.N)
-	if bidPrice <= 0 {
-		return 0, 0, 0
-	}
+	bidPrice = sellNet * int64(r.N-1) / int64(r.N)
 	distribution = bidPrice / int64(r.N-1)
 	grossProfit = r.Price - bidPrice
 	return
@@ -76,22 +52,12 @@ func (r Result) Format() string {
 	b.WriteString(fmt.Sprintf("* 입찰적정가 %s\n", fmtGold(directBid)))
 	b.WriteString(fmt.Sprintf("* 분배금     %s\n", fmtGold(directDist)))
 
+	sellBid, sellDist, sellProfit := r.SellBid()
 	b.WriteString("\n| 판매\n")
 	b.WriteString(fmt.Sprintf("* 수수료     %s\n", fmtGold(r.Fee())))
-
-	breakBid, breakDist, breakProfit := r.BreakEven()
-	b.WriteString("---\n")
-	b.WriteString(fmt.Sprintf("* 손익분기점   %s\n", fmtGold(breakBid)))
-	b.WriteString(fmt.Sprintf("* 분배금       %s\n", fmtGold(breakDist)))
-	b.WriteString(fmt.Sprintf("* 판매차익     %s\n", fmtGold(breakProfit)))
-
-	appBid, appDist, appProfit := r.SellAppropriate()
-	if appBid > 0 {
-		b.WriteString("---\n")
-		b.WriteString(fmt.Sprintf("* 입찰적정가    %s\n", fmtGold(appBid)))
-		b.WriteString(fmt.Sprintf("* 분배금        %s\n", fmtGold(appDist)))
-		b.WriteString(fmt.Sprintf("* 판매차익      %s", fmtGold(appProfit)))
-	}
+	b.WriteString(fmt.Sprintf("* 입찰적정가 %s\n", fmtGold(sellBid)))
+	b.WriteString(fmt.Sprintf("* 분배금     %s\n", fmtGold(sellDist)))
+	b.WriteString(fmt.Sprintf("* 판매차익   %s", fmtGold(sellProfit)))
 
 	return b.String()
 }
