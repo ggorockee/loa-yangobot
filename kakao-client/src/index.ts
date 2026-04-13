@@ -86,6 +86,7 @@ async function authenticate(): Promise<OAuthCredential> {
       );
       process.exit(1);
     }
+    console.error('[auth] Login failed detail:', JSON.stringify(loginResult));
     throw new Error(`[auth] Login failed: status=${loginResult.status}`);
   }
 
