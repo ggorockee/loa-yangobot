@@ -104,6 +104,15 @@ func (h *KakaoHandler) Handle(w http.ResponseWriter, r *http.Request) {
 			gear.LoaSpecPoint = lopecData.SpecPoint
 		}
 		result = gear.Format()
+	case command.CmdExpedition:
+		name := cmd.Args[0]
+		siblings, err := h.loa.GetSiblings(r.Context(), name)
+		if err != nil {
+			log.Printf("expedition error: %v", err)
+			h.writeJSON(w, simpleText("원정대 정보를 가져오지 못했습니다."))
+			return
+		}
+		result = lostark.FormatExpeditionRaid(name, siblings)
 	default:
 		result = "지원하지 않는 명령어입니다."
 	}

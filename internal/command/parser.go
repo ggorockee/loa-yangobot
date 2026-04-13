@@ -8,9 +8,10 @@ import (
 type CmdType string
 
 const (
-	CmdCharacter CmdType = "character"
-	CmdSpec      CmdType = "spec"
-	CmdGear      CmdType = "gear"
+	CmdCharacter   CmdType = "character"
+	CmdSpec        CmdType = "spec"
+	CmdGear        CmdType = "gear"
+	CmdExpedition  CmdType = "expedition"
 )
 
 type Command struct {
@@ -51,6 +52,11 @@ func Parse(utterance string) (*Command, error) {
 			return nil, errors.New("닉네임을 입력해주세요. 예) .군장 아비투스")
 		}
 		return &Command{Type: CmdGear, Args: parts[1:]}, nil
+	case "/원정대", "/expedition":
+		if len(parts) < 2 {
+			return nil, errors.New("닉네임을 입력해주세요. 예) /원정대 아비투스")
+		}
+		return &Command{Type: CmdExpedition, Args: parts[1:]}, nil
 	default:
 		return nil, ErrUnknownCommand
 	}

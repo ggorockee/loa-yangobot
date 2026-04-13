@@ -46,3 +46,16 @@ func (r *Redis) Set(ctx context.Context, key string, val any, ttl time.Duration)
 func (r *Redis) Ping(ctx context.Context) error {
 	return r.client.Ping(ctx).Err()
 }
+
+// IncrWindow는 fixed-window 카운터를 원자적으로 증가시키고 현재 카운트를 반환합니다.
+// 키가 처음 생성될 때 ttl을 설정합니다 (Lua 스크립트로 INCR+EXPIRE 원자 보장).
+func (r *Redis) IncrWindow(ctx context.Context, key string, ttl time.Duration) (int64, error) {
+	script := redis.NewScript(`
+		local n = redis.call('INCR', KEYS[1])
+		if n == 1 then
+			redis.call('EXPIRE', KEYS[1], ARGV[1])
+		end
+		return n
+	`)
+	return script.Run(ctx, r.client, []string{key}, int(ttl.Seconds())).Int64()
+}

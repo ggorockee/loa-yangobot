@@ -280,6 +280,10 @@ func (c *Client) GetArmory(ctx context.Context, name string) (*GearData, error) 
 		return &cached, nil
 	}
 
+	if err := c.checkAPIRateLimit(ctx); err != nil {
+		return nil, err
+	}
+
 	endpoint := fmt.Sprintf("%s/armories/characters/%s", baseURL, url.PathEscape(name))
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {

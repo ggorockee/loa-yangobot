@@ -72,8 +72,10 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.handleArmory(w, r, name)
 	case "lopec":
 		h.handleLopec(w, r, name)
+	case "expedition":
+		h.handleExpedition(w, r, name)
 	default:
-		http.Error(w, "unknown resource: "+resource+"\nusage: /api/v1/{character|armory|lopec}/{name}", http.StatusNotFound)
+		http.Error(w, "unknown resource: "+resource+"\nusage: /api/v1/{character|armory|lopec|expedition}/{name}", http.StatusNotFound)
 	}
 }
 
@@ -112,6 +114,16 @@ func (h *APIHandler) handleLopec(w http.ResponseWriter, r *http.Request, name st
 		return
 	}
 	writeAPIText(w, data.Format(name))
+}
+
+func (h *APIHandler) handleExpedition(w http.ResponseWriter, r *http.Request, name string) {
+	siblings, err := h.loa.GetSiblings(r.Context(), name)
+	if err != nil {
+		log.Printf("api/expedition error [%s]: %v", name, err)
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	writeAPIText(w, lostark.FormatExpeditionRaid(name, siblings))
 }
 
 // clientIP는 Istio/Envoy 프록시 뒤에서도 실제 클라이언트 IP를 추출합니다.
