@@ -1,0 +1,6 @@
+apiVersion: v2
+name: kakao-client
+description: 카카오 Loco 프로토콜 서버 사이드 봇
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

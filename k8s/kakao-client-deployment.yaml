@@ -1,0 +1,70 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kakao-client-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kakao-client
+  labels:
+    app: kakao-client
+spec:
+  # Loco 프로토콜은 동일 계정 단일 세션만 허용 — 반드시 1로 고정
+  replicas: 1
+  strategy:
+    type: Recreate  # RollingUpdate 사용 시 구 pod와 신 pod가 동시 기동 → 세션 충돌
+  selector:
+    matchLabels:
+      app: kakao-client
+  template:
+    metadata:
+      labels:
+        app: kakao-client
+    spec:
+      containers:
+        - name: kakao-client
+          image: ggorockee/yangobot-kakao-client:latest
+          env:
+            - name: KAKAO_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: kakao-client-secrets
+                  key: kakao-email
+            - name: KAKAO_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: kakao-client-secrets
+                  key: kakao-password
+            - name: ADMIN_USER_IDS
+              valueFrom:
+                secretKeyRef:
+                  name: kakao-client-secrets
+                  key: admin-user-ids
+            - name: YANGOBOT_API_URL
+              value: "http://yangobot"
+            - name: CREDENTIAL_PATH
+              value: "/data/credential.json"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: kakao-client-data
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
