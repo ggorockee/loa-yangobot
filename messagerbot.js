@@ -14,44 +14,51 @@ function parseResponse(html) {
   }
 }
 
+function asyncCall(url, replier, fallback) {
+  new java.lang.Thread(new java.lang.Runnable({
+    run: function() {
+      try {
+        var res = parseResponse(Utils.getWebText(url));
+        replier.reply(res || fallback);
+      } catch (e) {
+        replier.reply(fallback);
+      }
+    }
+  })).start();
+}
+
 function response(room, msg, sender, isGroupChat, replier, imageDB, packageName) {
-  var res, m;
+  var m;
 
   m = msg.match(/^[.·]군장\s+(.+)/);
   if (m) {
-    res = parseResponse(Utils.getWebText(API_BASE + "/armory/" + encodeURIComponent(m[1].trim())));
-    replier.reply(res || "캐릭터를 찾을 수 없습니다.");
+    asyncCall(API_BASE + "/armory/" + encodeURIComponent(m[1].trim()), replier, "캐릭터를 찾을 수 없습니다.");
     return;
   }
 
   m = msg.match(/^[.·]스펙\s+(.+)/);
   if (m) {
-    res = parseResponse(Utils.getWebText(API_BASE + "/lopec/" + encodeURIComponent(m[1].trim())));
-    replier.reply(res || "캐릭터를 찾을 수 없습니다.");
+    asyncCall(API_BASE + "/lopec/" + encodeURIComponent(m[1].trim()), replier, "캐릭터를 찾을 수 없습니다.");
     return;
   }
 
   m = msg.match(/^[.·]캐릭터\s+(.+)/);
   if (m) {
-    res = parseResponse(Utils.getWebText(API_BASE + "/character/" + encodeURIComponent(m[1].trim())));
-    replier.reply(res || "캐릭터를 찾을 수 없습니다.");
+    asyncCall(API_BASE + "/character/" + encodeURIComponent(m[1].trim()), replier, "캐릭터를 찾을 수 없습니다.");
     return;
   }
 
   m = msg.match(/^[.·]원정대\s+(.+)/);
   if (m) {
-    res = parseResponse(Utils.getWebText(API_BASE + "/expedition/" + encodeURIComponent(m[1].trim())));
-    replier.reply(res || "캐릭터를 찾을 수 없습니다.");
+    asyncCall(API_BASE + "/expedition/" + encodeURIComponent(m[1].trim()), replier, "캐릭터를 찾을 수 없습니다.");
     return;
   }
 
   // .ㄱㅁ8 49000 또는 .ㄱㅁ8 아드레날린 — 분배금 계산 (숫자: 직접 입력, 텍스트: 거래소 시세 조회)
   m = msg.match(/^[.·]ㄱㅁ([48])\s+(.+)/);
   if (m) {
-    var n = m[1];
     var query = m[2].trim().replace(/,/g, "");
-    res = parseResponse(Utils.getWebText(API_BASE + "/distribute/" + n + "/" + encodeURIComponent(query)));
-    replier.reply(res || "계산 중 오류가 발생했습니다.");
+    asyncCall(API_BASE + "/distribute/" + m[1] + "/" + encodeURIComponent(query), replier, "계산 중 오류가 발생했습니다.");
     return;
   }
 }
