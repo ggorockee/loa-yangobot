@@ -5,9 +5,10 @@ from pathlib import Path
 
 def update_image_tags(file_path: str, yangobot_tag: str, kakao_client_tag: str) -> bool:
     """
-    values.yaml에서 image.tag (yangobot) 및
-    kakao-client.image.tag 업데이트.
-    변경이 있었으면 True, 아니면 False 반환.
+    charts/helm/prod/yangobot/values.yaml 에서 이미지 태그 업데이트.
+    - image.tag                 : yangobot Go API
+    - kakao-client.image.tag    : kakao-client Node.js 봇
+    변경이 있었으면 True 반환.
     """
     yaml = YAML()
     yaml.preserve_quotes = True
@@ -24,7 +25,7 @@ def update_image_tags(file_path: str, yangobot_tag: str, kakao_client_tag: str) 
 
     changed = False
 
-    # yangobot image.tag
+    # yangobot image.tag (루트 레벨)
     if "image" not in data:
         data["image"] = {}
     before = data["image"].get("tag")
