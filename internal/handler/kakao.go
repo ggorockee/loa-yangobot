@@ -2,6 +2,7 @@ package handler
 
 import (
 	"log"
+	"sync"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/woohalabs2/yangobot/internal/command"
@@ -83,12 +84,28 @@ func (h *KakaoHandler) Handle(c fiber.Ctx) error {
 		result = data.Format(cmd.Args[0])
 	case command.CmdGear:
 		name := cmd.Args[0]
-		gear, err := h.loa.GetArmory(ctx, name)
-		if err != nil {
-			log.Printf("armory error: %v", err)
+		var (
+			gear      *lostark.GearData
+			lopecData *lopec.SpecData
+			gearErr   error
+			wg        sync.WaitGroup
+		)
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			gear, gearErr = h.loa.GetArmory(ctx, name)
+		}()
+		go func() {
+			defer wg.Done()
+			lopecData, _ = h.lopec.GetSpecPoint(ctx, name)
+		}()
+		wg.Wait()
+
+		if gearErr != nil {
+			log.Printf("armory error: %v", gearErr)
 			return c.JSON(simpleText("군장 정보를 가져오지 못했습니다."))
 		}
-		if lopecData, err := h.lopec.GetSpecPoint(ctx, name); err == nil {
+		if lopecData != nil {
 			gear.SecondClass = lopecData.SecondClass
 			gear.LoaSpecPoint = lopecData.SpecPoint
 		}

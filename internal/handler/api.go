@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/url"
 	"strings"
+	"sync"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/woohalabs2/yangobot/internal/lopec"
@@ -58,12 +59,28 @@ func (h *APIHandler) Handle(c fiber.Ctx) error {
 		return c.JSON(apiResponse{Text: info.Format()})
 
 	case "armory":
-		gear, err := h.loa.GetArmory(ctx, name)
-		if err != nil {
-			log.Printf("api/armory error [%s]: %v", name, err)
-			return c.Status(fiber.StatusNotFound).SendString(err.Error())
+		var (
+			gear      *lostark.GearData
+			lopecData *lopec.SpecData
+			gearErr   error
+			wg        sync.WaitGroup
+		)
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			gear, gearErr = h.loa.GetArmory(ctx, name)
+		}()
+		go func() {
+			defer wg.Done()
+			lopecData, _ = h.lopec.GetSpecPoint(ctx, name)
+		}()
+		wg.Wait()
+
+		if gearErr != nil {
+			log.Printf("api/armory error [%s]: %v", name, gearErr)
+			return c.Status(fiber.StatusNotFound).SendString(gearErr.Error())
 		}
-		if lopecData, err := h.lopec.GetSpecPoint(ctx, name); err == nil {
+		if lopecData != nil {
 			gear.SecondClass = lopecData.SecondClass
 			gear.LoaSpecPoint = lopecData.SpecPoint
 		}
