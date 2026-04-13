@@ -44,6 +44,16 @@ function response(room, msg, sender, isGroupChat, replier, imageDB, packageName)
     replier.reply(res || "캐릭터를 찾을 수 없습니다.");
     return;
   }
+
+  // .ㄱㅁ8 49000 또는 .ㄱㅁ4 49000 — 분배금 계산
+  m = msg.match(/^[.·]ㄱㅁ([48])\s+([\d,]+)/);
+  if (m) {
+    var n = m[1];
+    var price = m[2].replace(/,/g, "");
+    res = parseResponse(Utils.getWebText(API_BASE + "/distribute/" + n + "/" + price));
+    replier.reply(res || "계산 중 오류가 발생했습니다.");
+    return;
+  }
 }
 
 function onCreate(savedInstanceState, activity) {}

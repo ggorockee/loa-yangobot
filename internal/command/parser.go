@@ -2,6 +2,8 @@ package command
 
 import (
 	"errors"
+	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -12,11 +14,14 @@ const (
 	CmdSpec        CmdType = "spec"
 	CmdGear        CmdType = "gear"
 	CmdExpedition  CmdType = "expedition"
+	CmdDistribute  CmdType = "distribute"
 )
 
 type Command struct {
 	Type CmdType
 	Args []string
+	N    int   // CmdDistribute: 인원수 (4 or 8)
+	Gold int64 // CmdDistribute: 입찰 금액
 }
 
 var ErrUnknownCommand = errors.New("unknown command")
@@ -57,6 +62,20 @@ func Parse(utterance string) (*Command, error) {
 			return nil, errors.New("닉네임을 입력해주세요. 예) /원정대 아비투스")
 		}
 		return &Command{Type: CmdExpedition, Args: parts[1:]}, nil
+	case ".ㄱㅁ8", ".ㄱㅁ4":
+		n := 8
+		if parts[0] == ".ㄱㅁ4" {
+			n = 4
+		}
+		if len(parts) < 2 {
+			return nil, fmt.Errorf("금액을 입력해주세요. 예) %s 49000", parts[0])
+		}
+		raw := strings.ReplaceAll(parts[1], ",", "")
+		gold, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || gold <= 0 {
+			return nil, errors.New("올바른 금액을 입력해주세요. 예) .ㄱㅁ8 49000")
+		}
+		return &Command{Type: CmdDistribute, N: n, Gold: gold}, nil
 	default:
 		return nil, ErrUnknownCommand
 	}

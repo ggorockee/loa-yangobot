@@ -6,6 +6,7 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/woohalabs2/yangobot/internal/command"
+	"github.com/woohalabs2/yangobot/internal/distribute"
 	"github.com/woohalabs2/yangobot/internal/lopec"
 	"github.com/woohalabs2/yangobot/internal/lostark"
 	"github.com/woohalabs2/yangobot/internal/ratelimit"
@@ -118,6 +119,9 @@ func (h *KakaoHandler) Handle(c fiber.Ctx) error {
 			return c.JSON(simpleText("원정대 정보를 가져오지 못했습니다."))
 		}
 		result = lostark.FormatExpeditionRaid(name, siblings)
+	case command.CmdDistribute:
+		r := distribute.Result{N: cmd.N, Price: cmd.Gold}
+		result = r.Format()
 	default:
 		result = "지원하지 않는 명령어입니다."
 	}
