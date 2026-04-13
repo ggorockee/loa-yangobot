@@ -2,6 +2,7 @@ package handler
 
 import (
 	"log"
+	"net/url"
 	"strings"
 
 	"github.com/gofiber/fiber/v3"
@@ -39,7 +40,8 @@ func (h *APIHandler) Handle(c fiber.Ctx) error {
 	}
 
 	resource := c.Params("resource")
-	name := strings.TrimSpace(c.Params("name"))
+	decoded, _ := url.PathUnescape(c.Params("name"))
+	name := strings.TrimSpace(decoded)
 	if name == "" {
 		return c.Status(fiber.StatusBadRequest).SendString("usage: /api/v1/{character|armory|lopec|expedition}/{name}")
 	}
