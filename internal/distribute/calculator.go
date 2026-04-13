@@ -30,14 +30,26 @@ func (r Result) SellNet() int64 {
 	return r.Price - r.Fee()
 }
 
-// SellBid는 판매 시나리오 입찰적정가 결과입니다.
+// BreakEven은 손익분기점 시나리오 결과입니다.
 //
-// 공식: 입찰적정가 = floor(price × 0.95 × (n-1)/n)
-//
-// 거래소에서 판매할 때 수수료(5%) 제외 실수령액을 전체 인원이 공평하게 나눌 수 있는 입찰가.
-func (r Result) SellBid() (bidPrice, distribution, grossProfit int64) {
+// 낙찰자 판매 순이익 = 파티원 1인 분배금이 되는 입찰가.
+// 공식: bid = sell_net - floor(sell_net/n)
+func (r Result) BreakEven() (bidPrice, distribution, grossProfit int64) {
 	sellNet := r.SellNet()
-	bidPrice = sellNet * int64(r.N-1) / int64(r.N)
+	distribution = sellNet / int64(r.N) // floor
+	bidPrice = sellNet - distribution
+	grossProfit = r.Price - bidPrice
+	return
+}
+
+// SellAppropriate는 판매 입찰적정가 시나리오 결과입니다.
+//
+// 낙찰자에게 수고비 10% 마진을 보장하는 입찰가.
+// 공식: bid = ceil(손익분기점 / 1.1) = ceil(손익분기점 × 10 / 11)
+func (r Result) SellAppropriate() (bidPrice, distribution, grossProfit int64) {
+	breakEvenBid, _, _ := r.BreakEven()
+	// ceil(breakEvenBid * 10 / 11)
+	bidPrice = (breakEvenBid*10 + 10) / 11
 	distribution = bidPrice / int64(r.N-1)
 	grossProfit = r.Price - bidPrice
 	return
@@ -52,12 +64,19 @@ func (r Result) Format() string {
 	b.WriteString(fmt.Sprintf("* 입찰적정가 %s\n", fmtGold(directBid)))
 	b.WriteString(fmt.Sprintf("* 분배금     %s\n", fmtGold(directDist)))
 
-	sellBid, sellDist, sellProfit := r.SellBid()
+	breakBid, breakDist, breakProfit := r.BreakEven()
 	b.WriteString("\n| 판매\n")
-	b.WriteString(fmt.Sprintf("* 수수료     %s\n", fmtGold(r.Fee())))
-	b.WriteString(fmt.Sprintf("* 입찰적정가 %s\n", fmtGold(sellBid)))
-	b.WriteString(fmt.Sprintf("* 분배금     %s\n", fmtGold(sellDist)))
-	b.WriteString(fmt.Sprintf("* 판매차익   %s", fmtGold(sellProfit)))
+	b.WriteString(fmt.Sprintf("* 수수료       %s\n", fmtGold(r.Fee())))
+	b.WriteString("---\n")
+	b.WriteString(fmt.Sprintf("* 손익분기점   %s\n", fmtGold(breakBid)))
+	b.WriteString(fmt.Sprintf("* 분배금       %s\n", fmtGold(breakDist)))
+	b.WriteString(fmt.Sprintf("* 판매차익     %s\n", fmtGold(breakProfit)))
+
+	appBid, appDist, appProfit := r.SellAppropriate()
+	b.WriteString("---\n")
+	b.WriteString(fmt.Sprintf("* 입찰적정가   %s\n", fmtGold(appBid)))
+	b.WriteString(fmt.Sprintf("* 분배금       %s\n", fmtGold(appDist)))
+	b.WriteString(fmt.Sprintf("* 판매차익     %s", fmtGold(appProfit)))
 
 	return b.String()
 }
