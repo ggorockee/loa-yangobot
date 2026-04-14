@@ -3,7 +3,9 @@ package lostark
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"time"
@@ -12,48 +14,58 @@ import (
 )
 
 const (
-	baseURL        = "https://developer-lostark.game.onstove.com"
-	cacheTTL       = 5 * time.Minute
-	requestTimeout = 8 * time.Second
-
-	// Lost Ark API 분당 100건 제한. 안전 마진 5건.
-	apiRateLimit = 95
+	baseURL    = "https://developer-lostark.game.onstove.com"
+	cacheTTL   = 5 * time.Minute
+	keyTimeout = 1 * time.Second // 키 하나당 타임아웃
 )
 
+// ErrAllKeysExhausted는 등록된 모든 API 키가 타임아웃/레이트리밋에 걸렸을 때 반환됩니다.
+var ErrAllKeysExhausted = errors.New("현재 요청이 너무 많습니다. 잠시 후 다시 이용해 주세요.")
+
 type Client struct {
-	apiKey  string
-	http    *http.Client
-	cache   *cache.Redis
+	keys  []string
+	http  *http.Client
+	cache *cache.Redis
 }
 
-func NewClient(apiKey string, c *cache.Redis) *Client {
+// NewClient는 API 키 목록을 받아 Client를 생성합니다.
+// 요청 시 keys[0] → keys[1] → keys[2] 순으로 폴백합니다.
+func NewClient(keys []string, c *cache.Redis) *Client {
 	return &Client{
-		apiKey: apiKey,
-		http: &http.Client{
-			Timeout: requestTimeout,
-		},
+		keys:  keys,
+		http:  &http.Client{},
 		cache: c,
 	}
 }
 
-// checkAPIRateLimit은 Redis fixed-window로 전체 pod 합산 분당 API 호출 수를 체크합니다.
-// Redis 장애 시 fail-open (통과)으로 동작합니다.
-func (c *Client) checkAPIRateLimit(ctx context.Context) error {
-	minute := time.Now().UTC().Format("200601021504")
-	key := "ratelimit:lostark:" + minute
-	count, err := c.cache.IncrWindow(ctx, key, time.Minute)
-	if err != nil {
-		// Redis 오류 시 통과 — Lost Ark API 응답에서 429로 자체 확인
-		return nil
+// doWithFallback은 등록된 키를 순서대로 시도합니다.
+// 키당 타임아웃(keyTimeout) 초과 또는 429 응답 시 다음 키로 넘어갑니다.
+// 모든 키 소진 시 ErrAllKeysExhausted를 반환합니다.
+func (c *Client) doWithFallback(ctx context.Context, buildReq func(ctx context.Context, key string) (*http.Request, error)) (*http.Response, error) {
+	for i, key := range c.keys {
+		keyCtx, cancel := context.WithTimeout(ctx, keyTimeout)
+		req, err := buildReq(keyCtx, key)
+		if err != nil {
+			cancel()
+			return nil, err
+		}
+		resp, err := c.http.Do(req)
+		cancel()
+		if err != nil {
+			log.Printf("[lostark] key[%d] failed: %v", i+1, err)
+			continue
+		}
+		if resp.StatusCode == http.StatusTooManyRequests {
+			resp.Body.Close()
+			log.Printf("[lostark] key[%d] rate limited (429)", i+1)
+			continue
+		}
+		return resp, nil
 	}
-	if count > apiRateLimit {
-		return fmt.Errorf("lost ark API rate limit 초과 (%d/100 req/min)", count)
-	}
-	return nil
+	return nil, ErrAllKeysExhausted
 }
 
 // GetCharacter는 캐릭터 이름으로 기본 정보를 조회합니다.
-// Redis 캐시가 있으면 캐시된 값을 반환합니다.
 func (c *Client) GetCharacter(ctx context.Context, name string) (*CharacterInfo, error) {
 	siblings, err := c.GetSiblings(ctx, name)
 	if err != nil {
@@ -67,7 +79,7 @@ func (c *Client) GetCharacter(ctx context.Context, name string) (*CharacterInfo,
 	return nil, fmt.Errorf("캐릭터를 찾을 수 없습니다: %s", name)
 }
 
-// GetSiblings는 캐릭터 이름으로 동일 계정의 원정대 전체 캐릭터 목록을 반환합니다.
+// GetSiblings는 캐릭터 이름으로 원정대 전체 캐릭터 목록을 반환합니다.
 // Redis 캐시가 있으면 캐시된 값을 반환합니다 (캐시 키: siblings:<name>).
 func (c *Client) GetSiblings(ctx context.Context, name string) ([]CharacterInfo, error) {
 	cacheKey := "siblings:" + name
@@ -77,21 +89,18 @@ func (c *Client) GetSiblings(ctx context.Context, name string) ([]CharacterInfo,
 		return cached, nil
 	}
 
-	if err := c.checkAPIRateLimit(ctx); err != nil {
+	resp, err := c.doWithFallback(ctx, func(keyCtx context.Context, key string) (*http.Request, error) {
+		endpoint := fmt.Sprintf("%s/characters/%s/siblings", baseURL, url.PathEscape(name))
+		req, err := http.NewRequestWithContext(keyCtx, http.MethodGet, endpoint, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Authorization", "bearer "+key)
+		req.Header.Set("Accept", "application/json")
+		return req, nil
+	})
+	if err != nil {
 		return nil, err
-	}
-
-	endpoint := fmt.Sprintf("%s/characters/%s/siblings", baseURL, url.PathEscape(name))
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-	req.Header.Set("Authorization", "bearer "+c.apiKey)
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("do request: %w", err)
 	}
 	defer resp.Body.Close()
 

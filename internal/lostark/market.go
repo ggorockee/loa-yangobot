@@ -63,10 +63,6 @@ func (c *Client) GetMarketPrice(ctx context.Context, itemName string) (*MarketIt
 		return &cached, nil
 	}
 
-	if err := c.checkAPIRateLimit(ctx); err != nil {
-		return nil, err
-	}
-
 	reqBody := marketRequest{
 		Sort:          "CURRENT_MIN_PRICE",
 		SortCondition: "ASC",
@@ -75,23 +71,25 @@ func (c *Client) GetMarketPrice(ctx context.Context, itemName string) (*MarketIt
 		ItemName:      itemName,
 		PageNo:        1,
 	}
-	bodyBytes, err := json.Marshal(reqBody)
-	if err != nil {
-		return nil, fmt.Errorf("marshal request: %w", err)
-	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		baseURL+"/markets/items", bytes.NewReader(bodyBytes))
+	resp, err := c.doWithFallback(ctx, func(keyCtx context.Context, key string) (*http.Request, error) {
+		// POST body는 시도마다 새로 생성 (Reader는 소모성)
+		bodyBytes, err := json.Marshal(reqBody)
+		if err != nil {
+			return nil, fmt.Errorf("marshal request: %w", err)
+		}
+		req, err := http.NewRequestWithContext(keyCtx, http.MethodPost,
+			baseURL+"/markets/items", bytes.NewReader(bodyBytes))
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Authorization", "bearer "+key)
+		req.Header.Set("Accept", "application/json")
+		req.Header.Set("Content-Type", "application/json")
+		return req, nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-	req.Header.Set("Authorization", "bearer "+c.apiKey)
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("do request: %w", err)
+		return nil, err
 	}
 	defer resp.Body.Close()
 

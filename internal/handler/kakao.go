@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"log"
 	"sync"
 
@@ -68,10 +69,17 @@ func (h *KakaoHandler) Handle(c fiber.Ctx) error {
 	ctx := c.Context()
 	var result string
 
+	loaBusy := func(err error) bool {
+		return errors.Is(err, lostark.ErrAllKeysExhausted)
+	}
+
 	switch cmd.Type {
 	case command.CmdCharacter:
 		info, err := h.loa.GetCharacter(ctx, cmd.Args[0])
 		if err != nil {
+			if loaBusy(err) {
+				return c.JSON(simpleText(lostark.ErrAllKeysExhausted.Error()))
+			}
 			log.Printf("lostark API error: %v", err)
 			return c.JSON(simpleText("캐릭터 정보를 가져오지 못했습니다."))
 		}
@@ -103,6 +111,9 @@ func (h *KakaoHandler) Handle(c fiber.Ctx) error {
 		wg.Wait()
 
 		if gearErr != nil {
+			if loaBusy(gearErr) {
+				return c.JSON(simpleText(lostark.ErrAllKeysExhausted.Error()))
+			}
 			log.Printf("armory error: %v", gearErr)
 			return c.JSON(simpleText("군장 정보를 가져오지 못했습니다."))
 		}
@@ -115,6 +126,9 @@ func (h *KakaoHandler) Handle(c fiber.Ctx) error {
 		name := cmd.Args[0]
 		siblings, err := h.loa.GetSiblings(ctx, name)
 		if err != nil {
+			if loaBusy(err) {
+				return c.JSON(simpleText(lostark.ErrAllKeysExhausted.Error()))
+			}
 			log.Printf("expedition error: %v", err)
 			return c.JSON(simpleText("원정대 정보를 가져오지 못했습니다."))
 		}
@@ -128,6 +142,9 @@ func (h *KakaoHandler) Handle(c fiber.Ctx) error {
 			// 각인서 이름 조회
 			item, err := h.loa.GetMarketPrice(ctx, cmd.Args[0])
 			if err != nil {
+				if loaBusy(err) {
+					return c.JSON(simpleText(lostark.ErrAllKeysExhausted.Error()))
+				}
 				log.Printf("market price error [%s]: %v", cmd.Args[0], err)
 				return c.JSON(simpleText("거래소 시세를 가져오지 못했습니다."))
 			}
