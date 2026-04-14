@@ -77,18 +77,18 @@ type raidEntry struct {
 // raidGroups는 레이드 그룹 순서대로, 각 그룹 내 티어는 높은 컷라인 순으로 정렬합니다.
 // 한 그룹에서 캐릭터가 입장 가능한 최상위 티어 하나만 골드 후보로 취합니다.
 // clearGold·moreGold는 해당 난이도의 전 단계 합산값입니다 (rloa.gg 기준).
-// bound=true: 캐릭터 귀속 골드 (거래 불가), false: 유통 골드 (거래 가능)
+// bound=true: 지평의 성당(캐릭터 귀속, 로스터당 3캐릭 제한)
 var altRaidGroups = []struct {
 	name    string
 	entries []raidEntry
 }{
-	// ─ 귀속 골드 ───────────────────────────────────────────────────
+	// ─ 귀속 골드: 지평의 성당만 (로스터당 3캐릭 제한) ──────────────
 	{"지평의 성당", []raidEntry{
 		{"지평의 성당", "3단계", 1750, 50000, 16000, true},
 		{"지평의 성당", "2단계", 1720, 40000, 12800, true},
 		{"지평의 성당", "1단계", 1700, 30000, 9600, true},
 	}},
-	// ─ 유통 골드 ───────────────────────────────────────────────────
+	// ─ 일반 골드 ────────────────────────────────────────────────────
 	{"세르카", []raidEntry{
 		{"세르카", "나메", 1740, 54000, 17280, false},
 		{"세르카", "하드", 1730, 44000, 14080, false},
@@ -116,42 +116,41 @@ var altRaidGroups = []struct {
 	}},
 	{"서막", []raidEntry{
 		{"서막", "하드", 1640, 7200, 2350, false},
-		{"서막", "노말", 1620, 6100, 1010, true}, // 에키드나 노말은 귀속
+		{"서막", "노말", 1620, 6100, 1010, false},
 	}},
 	{"베히모스", []raidEntry{
 		{"베히모스", "", 1640, 7200, 2350, false},
 	}},
-	// ─ 귀속 골드 (구 군단장) ────────────────────────────────────────
 	{"카멘", []raidEntry{
-		{"카멘", "하드", 1630, 13000, 3250, true},
-		{"카멘", "노말", 1610, 6400, 1440, true},
+		{"카멘", "하드", 1630, 13000, 3250, false},
+		{"카멘", "노말", 1610, 6400, 1440, false},
 	}},
 	{"혼돈의 상아탑", []raidEntry{
-		{"혼돈의 상아탑", "하드", 1620, 7200, 1800, true},
-		{"혼돈의 상아탑", "노말", 1600, 5200, 700, true},
+		{"혼돈의 상아탑", "하드", 1620, 7200, 1800, false},
+		{"혼돈의 상아탑", "노말", 1600, 5200, 700, false},
 	}},
 	{"일리아칸", []raidEntry{
-		{"일리아칸", "하드", 1600, 6000, 1500, true},
-		{"일리아칸", "노말", 1580, 4700, 750, true},
+		{"일리아칸", "하드", 1600, 6000, 1500, false},
+		{"일리아칸", "노말", 1580, 4700, 750, false},
 	}},
 	{"카양겔", []raidEntry{
-		{"카양겔", "하드", 1580, 4300, 1075, true},
-		{"카양겔", "노말", 1540, 3300, 650, true},
+		{"카양겔", "하드", 1580, 4300, 1075, false},
+		{"카양겔", "노말", 1540, 3300, 650, false},
 	}},
 	{"아브렐슈드", []raidEntry{
-		{"아브렐슈드", "하드", 1560, 5600, 2100, true},
-		{"아브렐슈드", "노말", 1520, 4600, 1550, true},
+		{"아브렐슈드", "하드", 1560, 5600, 2100, false},
+		{"아브렐슈드", "노말", 1520, 4600, 1550, false},
 	}},
 	{"쿠크세이튼", []raidEntry{
-		{"쿠크세이튼", "", 1475, 3000, 1500, true},
+		{"쿠크세이튼", "", 1475, 3000, 1500, false},
 	}},
 	{"비아키스", []raidEntry{
-		{"비아키스", "하드", 1460, 2400, 1150, true},
-		{"비아키스", "노말", 1430, 1600, 750, true},
+		{"비아키스", "하드", 1460, 2400, 1150, false},
+		{"비아키스", "노말", 1430, 1600, 750, false},
 	}},
 	{"발탄", []raidEntry{
-		{"발탄", "하드", 1445, 1800, 1050, true},
-		{"발탄", "노말", 1415, 1200, 700, true},
+		{"발탄", "하드", 1445, 1800, 1050, false},
+		{"발탄", "노말", 1415, 1200, 700, false},
 	}},
 }
 
@@ -173,11 +172,11 @@ func availableRaidsForChar(itemLevel float64) []raidEntry {
 // ─── 포맷 ──────────────────────────────────────────────────────────
 
 type charGoldResult struct {
-	char       CharacterInfo
-	tradeGold  int64 // 유통 골드 (클리어 합계)
-	boundGold  int64 // 귀속 골드 (클리어 합계)
-	tradeNet   int64 // 유통 골드 - 더보기
-	boundNet   int64 // 귀속 골드 - 더보기
+	char         CharacterInfo
+	baseGold     int64 // 일반 골드 합계 (성당 제외)
+	cathedralGold int64 // 지평의 성당 골드 (귀속, 3캐릭 제한)
+	baseNet      int64 // 일반 골드 - 더보기
+	cathedralNet int64 // 성당 골드 - 더보기
 }
 
 // FormatAlts는 원정대 부캐 골드 계산 결과를 포맷합니다.
@@ -206,7 +205,7 @@ func FormatAlts(queriedName string, siblings []CharacterInfo) string {
 			return parseItemLevel(chars[i].ItemAvgLevel) > parseItemLevel(chars[j].ItemAvgLevel)
 		})
 
-		// 캐릭터별 골드 계산 (유통/귀속 분리)
+		// 캐릭터별 골드 계산 (성당 분리)
 		var results []charGoldResult
 		for _, ch := range chars {
 			lvl := parseItemLevel(ch.ItemAvgLevel)
@@ -216,26 +215,26 @@ func FormatAlts(queriedName string, siblings []CharacterInfo) string {
 			for _, r := range raids {
 				net := r.clearGold - r.moreGold
 				if r.bound {
-					cg.boundGold += r.clearGold
-					cg.boundNet += net
+					cg.cathedralGold += r.clearGold
+					cg.cathedralNet += net
 				} else {
-					cg.tradeGold += r.clearGold
-					cg.tradeNet += net
+					cg.baseGold += r.clearGold
+					cg.baseNet += net
 				}
 			}
 			results = append(results, cg)
 		}
 
-		// 합계: 일반 골드 top6, 귀속 골드 top3 (로스터당 3캐릭 제한)
-		var top6Gold, top6Net, top3Bound, top3BoundNet int64
+		// 일반 골드 top6, 성당 골드 top3 (로스터당 3캐릭 제한)
+		var top6Gold, top6Net, top3Cathedral, top3CathedralNet int64
 		for i, cg := range results {
 			if i < 6 {
-				top6Gold += cg.tradeGold
-				top6Net += cg.tradeNet
+				top6Gold += cg.baseGold
+				top6Net += cg.baseNet
 			}
 			if i < 3 {
-				top3Bound += cg.boundGold
-				top3BoundNet += cg.boundNet
+				top3Cathedral += cg.cathedralGold
+				top3CathedralNet += cg.cathedralNet
 			}
 		}
 
@@ -246,9 +245,9 @@ func FormatAlts(queriedName string, siblings []CharacterInfo) string {
 		}
 		b.WriteString("\n")
 		b.WriteString(fmt.Sprintf("• 6캐릭 합계: %s 골드\n", formatGold(top6Gold)))
-		b.WriteString(fmt.Sprintf("• 귀속(3캐릭): %s 골드\n", formatGold(top3Bound)))
+		b.WriteString(fmt.Sprintf("• 성당 포함: %s 골드\n", formatGold(top6Gold+top3Cathedral)))
 		b.WriteString(fmt.Sprintf("• 더보기 제외: %s 골드\n", formatGold(top6Net)))
-		b.WriteString(fmt.Sprintf("• 더보기 제외(귀속): %s 골드", formatGold(top3BoundNet)))
+		b.WriteString(fmt.Sprintf("• 더보기 제외(성당): %s 골드", formatGold(top6Net+top3CathedralNet)))
 	}
 
 	return b.String()
