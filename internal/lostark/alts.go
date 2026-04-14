@@ -71,50 +71,93 @@ type raidEntry struct {
 	minLevel  float64
 	clearGold int64
 	moreGold  int64
+	bound     bool // 캐릭터 귀속 골드 여부 (rloa.gg is_bound_gold 기준)
 }
 
 // raidGroups는 레이드 그룹 순서대로, 각 그룹 내 티어는 높은 컷라인 순으로 정렬합니다.
 // 한 그룹에서 캐릭터가 입장 가능한 최상위 티어 하나만 골드 후보로 취합니다.
+// clearGold·moreGold는 해당 난이도의 전 단계 합산값입니다 (rloa.gg 기준).
+// bound=true: 캐릭터 귀속 골드 (거래 불가), false: 유통 골드 (거래 가능)
 var altRaidGroups = []struct {
 	name    string
 	entries []raidEntry
 }{
+	// ─ 귀속 골드 ───────────────────────────────────────────────────
+	{"지평의 성당", []raidEntry{
+		{"지평의 성당", "3단계", 1750, 50000, 16000, true},
+		{"지평의 성당", "2단계", 1720, 40000, 12800, true},
+		{"지평의 성당", "1단계", 1700, 30000, 9600, true},
+	}},
+	// ─ 유통 골드 ───────────────────────────────────────────────────
 	{"세르카", []raidEntry{
-		{"세르카", "나메", 1740, 54000, 17280},
-		{"세르카", "하드", 1730, 44000, 14080},
-		{"세르카", "노말", 1710, 35000, 11200},
+		{"세르카", "나메", 1740, 54000, 17280, false},
+		{"세르카", "하드", 1730, 44000, 14080, false},
+		{"세르카", "노말", 1710, 35000, 11200, false},
 	}},
 	{"종막", []raidEntry{
-		{"종막", "하드", 1730, 52000, 16640},
-		{"종막", "노말", 1710, 40000, 12800},
+		{"종막", "하드", 1730, 52000, 16640, false},
+		{"종막", "노말", 1710, 40000, 12800, false},
 	}},
 	{"4막", []raidEntry{
-		{"4막", "하드", 1720, 42000, 13440},
-		{"4막", "노말", 1700, 33000, 10560},
+		{"4막", "하드", 1720, 42000, 13440, false},
+		{"4막", "노말", 1700, 33000, 10560, false},
 	}},
 	{"3막", []raidEntry{
-		{"3막", "하드", 1700, 27000, 8350},
-		{"3막", "노말", 1680, 21000, 7010},
+		{"3막", "하드", 1700, 27000, 8350, false},
+		{"3막", "노말", 1680, 21000, 7010, false},
 	}},
 	{"2막", []raidEntry{
-		{"2막", "하드", 1690, 23000, 7500},
-		{"2막", "노말", 1670, 16500, 5540},
+		{"2막", "하드", 1690, 23000, 7500, false},
+		{"2막", "노말", 1670, 16500, 5540, false},
 	}},
 	{"1막", []raidEntry{
-		{"1막", "하드", 1680, 18000, 5970},
-		{"1막", "노말", 1660, 11500, 2530},
+		{"1막", "하드", 1680, 18000, 5970, false},
+		{"1막", "노말", 1660, 11500, 2530, false},
 	}},
 	{"서막", []raidEntry{
-		{"서막", "하드", 1640, 7200, 2350},
+		{"서막", "하드", 1640, 7200, 2350, false},
+		{"서막", "노말", 1620, 6100, 1010, true}, // 에키드나 노말은 귀속
 	}},
 	{"베히모스", []raidEntry{
-		{"베히모스", "", 1600, 7200, 2350},
+		{"베히모스", "", 1640, 7200, 2350, false},
+	}},
+	// ─ 귀속 골드 (구 군단장) ────────────────────────────────────────
+	{"카멘", []raidEntry{
+		{"카멘", "하드", 1630, 13000, 3250, true},
+		{"카멘", "노말", 1610, 6400, 1440, true},
+	}},
+	{"혼돈의 상아탑", []raidEntry{
+		{"혼돈의 상아탑", "하드", 1620, 7200, 1800, true},
+		{"혼돈의 상아탑", "노말", 1600, 5200, 700, true},
+	}},
+	{"일리아칸", []raidEntry{
+		{"일리아칸", "하드", 1600, 6000, 1500, true},
+		{"일리아칸", "노말", 1580, 4700, 750, true},
+	}},
+	{"카양겔", []raidEntry{
+		{"카양겔", "하드", 1580, 4300, 1075, true},
+		{"카양겔", "노말", 1540, 3300, 650, true},
+	}},
+	{"아브렐슈드", []raidEntry{
+		{"아브렐슈드", "하드", 1560, 5600, 2100, true},
+		{"아브렐슈드", "노말", 1520, 4600, 1550, true},
+	}},
+	{"쿠크세이튼", []raidEntry{
+		{"쿠크세이튼", "", 1475, 3000, 1500, true},
+	}},
+	{"비아키스", []raidEntry{
+		{"비아키스", "하드", 1460, 2400, 1150, true},
+		{"비아키스", "노말", 1430, 1600, 750, true},
+	}},
+	{"발탄", []raidEntry{
+		{"발탄", "하드", 1445, 1800, 1050, true},
+		{"발탄", "노말", 1415, 1200, 700, true},
 	}},
 }
 
-// bestRaidsForChar는 캐릭터 아이템 레벨 기준으로 각 레이드 그룹에서
-// 최상위 입장 가능 티어를 골라 (클리어골드+더보기골드) 내림차순으로 정렬한 뒤 상위 3개를 반환합니다.
-func bestRaidsForChar(itemLevel float64) []raidEntry {
+// availableRaidsForChar는 캐릭터 아이템 레벨 기준으로 각 레이드 그룹에서
+// 입장 가능한 최상위 티어를 모두 반환합니다. 제한 없이 전체 레이드 포함.
+func availableRaidsForChar(itemLevel float64) []raidEntry {
 	var available []raidEntry
 	for _, group := range altRaidGroups {
 		for _, e := range group.entries {
@@ -124,22 +167,21 @@ func bestRaidsForChar(itemLevel float64) []raidEntry {
 			}
 		}
 	}
-	sort.Slice(available, func(i, j int) bool {
-		return (available[i].clearGold + available[i].moreGold) > (available[j].clearGold + available[j].moreGold)
-	})
-	if len(available) > 3 {
-		available = available[:3]
-	}
 	return available
 }
 
 // ─── 포맷 ──────────────────────────────────────────────────────────
 
 type charGoldResult struct {
-	char      CharacterInfo
-	withMore  int64
-	clearOnly int64
+	char       CharacterInfo
+	tradeGold  int64 // 유통 골드 (클리어 합계)
+	boundGold  int64 // 귀속 골드 (클리어 합계)
+	tradeNet   int64 // 유통 골드 - 더보기
+	boundNet   int64 // 귀속 골드 - 더보기
 }
+
+func (c charGoldResult) totalClear() int64 { return c.tradeGold + c.boundGold }
+func (c charGoldResult) totalNet() int64   { return c.tradeNet + c.boundNet }
 
 // FormatAlts는 원정대 부캐 골드 계산 결과를 포맷합니다.
 // queriedName: 조회에 사용한 캐릭터 이름 (헤더에 표시)
@@ -167,30 +209,37 @@ func FormatAlts(queriedName string, siblings []CharacterInfo) string {
 			return parseItemLevel(chars[i].ItemAvgLevel) > parseItemLevel(chars[j].ItemAvgLevel)
 		})
 
-		// 골드 계산
+		// 캐릭터별 골드 계산 (유통/귀속 분리)
 		var results []charGoldResult
-		var totalGold, totalClear int64
 		for _, ch := range chars {
 			lvl := parseItemLevel(ch.ItemAvgLevel)
-			raids := bestRaidsForChar(lvl)
-			var withMore, clearOnly int64
+			raids := availableRaidsForChar(lvl)
+			var cg charGoldResult
+			cg.char = ch
 			for _, r := range raids {
-				withMore += r.clearGold + r.moreGold
-				clearOnly += r.clearGold
+				net := r.clearGold - r.moreGold
+				if r.bound {
+					cg.boundGold += r.clearGold
+					cg.boundNet += net
+				} else {
+					cg.tradeGold += r.clearGold
+					cg.tradeNet += net
+				}
 			}
-			results = append(results, charGoldResult{char: ch, withMore: withMore, clearOnly: clearOnly})
-			totalGold += withMore
-			totalClear += clearOnly
+			results = append(results, cg)
 		}
 
-		// 상위 6캐릭 합계
-		var top6Gold, top6Clear int64
+		// 합계: 일반 골드 top6, 귀속 골드 top3 (로스터당 3캐릭 제한)
+		var top6Gold, top6Net, top3Bound, top3BoundNet int64
 		for i, cg := range results {
-			if i >= 6 {
-				break
+			if i < 6 {
+				top6Gold += cg.tradeGold
+				top6Net += cg.tradeNet
 			}
-			top6Gold += cg.withMore
-			top6Clear += cg.clearOnly
+			if i < 3 {
+				top3Bound += cg.boundGold
+				top3BoundNet += cg.boundNet
+			}
 		}
 
 		b.WriteString(fmt.Sprintf("\n✤ %s 서버\n", server))
@@ -198,9 +247,11 @@ func FormatAlts(queriedName string, siblings []CharacterInfo) string {
 			label := classLabel(cg.char.CharacterClassName)
 			b.WriteString(fmt.Sprintf("[%s] %s (%s)\n", label, cg.char.CharacterName, cg.char.ItemAvgLevel))
 		}
-		b.WriteString(fmt.Sprintf("\n• 6캐릭 합계: %s 골드\n", formatGold(top6Gold)))
-		b.WriteString(fmt.Sprintf("• 전체 합계: %s 골드\n", formatGold(totalGold)))
-		b.WriteString(fmt.Sprintf("• 더보기 제외: %s 골드", formatGold(top6Clear)))
+		b.WriteString("\n")
+		b.WriteString(fmt.Sprintf("• 6캐릭 합계: %s 골드\n", formatGold(top6Gold)))
+		b.WriteString(fmt.Sprintf("• 귀속(3캐릭): %s 골드\n", formatGold(top3Bound)))
+		b.WriteString(fmt.Sprintf("• 더보기 제외: %s 골드\n", formatGold(top6Net)))
+		b.WriteString(fmt.Sprintf("• 더보기 제외(귀속): %s 골드", formatGold(top3BoundNet)))
 	}
 
 	return b.String()
