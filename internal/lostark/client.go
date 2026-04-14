@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"sync/atomic"
 	"time"
 
 	"github.com/woohalabs2/yangobot/internal/cache"
@@ -23,13 +24,14 @@ const (
 var ErrAllKeysExhausted = errors.New("현재 요청이 너무 많습니다. 잠시 후 다시 이용해 주세요.")
 
 type Client struct {
-	keys  []string
-	http  *http.Client
-	cache *cache.Redis
+	keys   []string
+	keyIdx uint64 // round-robin 카운터 (atomic)
+	http   *http.Client
+	cache  *cache.Redis
 }
 
 // NewClient는 API 키 목록을 받아 Client를 생성합니다.
-// 요청 시 keys[0] → keys[1] → keys[2] 순으로 폴백합니다.
+// 요청마다 round-robin으로 시작 키를 분산하고, 실패 시 다음 키로 폴백합니다.
 func NewClient(keys []string, c *cache.Redis) *Client {
 	return &Client{
 		keys:  keys,
@@ -38,11 +40,15 @@ func NewClient(keys []string, c *cache.Redis) *Client {
 	}
 }
 
-// doWithFallback은 등록된 키를 순서대로 시도합니다.
+// doWithFallback은 round-robin으로 시작 키를 선택한 뒤 순환 폴백합니다.
 // 키당 타임아웃(keyTimeout) 초과 또는 429 응답 시 다음 키로 넘어갑니다.
 // 모든 키 소진 시 ErrAllKeysExhausted를 반환합니다.
 func (c *Client) doWithFallback(ctx context.Context, buildReq func(ctx context.Context, key string) (*http.Request, error)) (*http.Response, error) {
-	for i, key := range c.keys {
+	n := uint64(len(c.keys))
+	start := atomic.AddUint64(&c.keyIdx, 1) % n
+	for i := uint64(0); i < n; i++ {
+		idx := (start + i) % n
+		key := c.keys[idx]
 		keyCtx, cancel := context.WithTimeout(ctx, keyTimeout)
 		req, err := buildReq(keyCtx, key)
 		if err != nil {
@@ -52,12 +58,12 @@ func (c *Client) doWithFallback(ctx context.Context, buildReq func(ctx context.C
 		resp, err := c.http.Do(req)
 		cancel()
 		if err != nil {
-			log.Printf("[lostark] key[%d] failed: %v", i+1, err)
+			log.Printf("[lostark] key[%d] failed: %v", idx+1, err)
 			continue
 		}
 		if resp.StatusCode == http.StatusTooManyRequests {
 			resp.Body.Close()
-			log.Printf("[lostark] key[%d] rate limited (429)", i+1)
+			log.Printf("[lostark] key[%d] rate limited (429)", idx+1)
 			continue
 		}
 		return resp, nil
