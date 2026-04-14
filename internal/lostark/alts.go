@@ -172,11 +172,11 @@ func availableRaidsForChar(itemLevel float64) []raidEntry {
 // ─── 포맷 ──────────────────────────────────────────────────────────
 
 type charGoldResult struct {
-	char         CharacterInfo
-	baseGold     int64 // 일반 골드 합계 (성당 제외)
-	cathedralGold int64 // 지평의 성당 골드 (귀속, 3캐릭 제한)
-	baseNet      int64 // 일반 골드 - 더보기
-	cathedralNet int64 // 성당 골드 - 더보기
+	char     CharacterInfo
+	withGold int64 // 성당 포함 top3 합계
+	withNet  int64 // 성당 포함 top3 더보기 제외
+	noGold   int64 // 성당 제외 top3 합계 (다른 던전으로 3개 유지)
+	noNet    int64 // 성당 제외 top3 더보기 제외
 }
 
 // FormatAlts는 원정대 부캐 골드 계산 결과를 포맷합니다.
@@ -205,45 +205,58 @@ func FormatAlts(queriedName string, siblings []CharacterInfo) string {
 			return parseItemLevel(chars[i].ItemAvgLevel) > parseItemLevel(chars[j].ItemAvgLevel)
 		})
 
-		// 캐릭터별 골드 계산 — 가능한 레이드 중 골드 상위 3개만 선택
+		// 캐릭터별 골드 계산
+		// - withTop3: 성당 포함 전체 레이드 상위 3개
+		// - noTop3:   성당 제외 레이드 상위 3개 (항상 3개 유지)
 		var results []charGoldResult
 		for _, ch := range chars {
 			lvl := parseItemLevel(ch.ItemAvgLevel)
-			raids := availableRaidsForChar(lvl)
+			all := availableRaidsForChar(lvl)
 
-			// 클리어 골드 내림차순 → 상위 3레이드
-			sort.Slice(raids, func(i, j int) bool {
-				return raids[i].clearGold > raids[j].clearGold
+			sort.Slice(all, func(i, j int) bool {
+				return all[i].clearGold > all[j].clearGold
 			})
-			if len(raids) > 3 {
-				raids = raids[:3]
-			}
 
 			var cg charGoldResult
 			cg.char = ch
-			for _, r := range raids {
-				net := r.clearGold - r.moreGold
+
+			// 성당 포함 top3: clearGold 내림차순, 상위 3개
+			with := all
+			if len(with) > 3 {
+				with = with[:3]
+			}
+			for _, r := range with {
+				cg.withGold += r.clearGold
+				cg.withNet += r.clearGold - r.moreGold
+			}
+
+			// 성당 제외 top3: bound=false 만, clearGold 내림차순, 상위 3개
+			cnt := 0
+			for _, r := range all {
 				if r.bound {
-					cg.cathedralGold += r.clearGold
-					cg.cathedralNet += net
-				} else {
-					cg.baseGold += r.clearGold
-					cg.baseNet += net
+					continue
+				}
+				cg.noGold += r.clearGold
+				cg.noNet += r.clearGold - r.moreGold
+				cnt++
+				if cnt >= 3 {
+					break
 				}
 			}
+
 			results = append(results, cg)
 		}
 
-		// 상위 6캐릭 합계 (성당은 top3 선택 시 자연스럽게 포함/제외됨)
-		var top6Gold, top6Net, top6Cathedral, top6CathedralNet int64
+		// 상위 6캐릭 합계
+		var top6With, top6WithNet, top6No, top6NoNet int64
 		for i, cg := range results {
 			if i >= 6 {
 				break
 			}
-			top6Gold += cg.baseGold
-			top6Net += cg.baseNet
-			top6Cathedral += cg.cathedralGold
-			top6CathedralNet += cg.cathedralNet
+			top6With += cg.withGold
+			top6WithNet += cg.withNet
+			top6No += cg.noGold
+			top6NoNet += cg.noNet
 		}
 
 		b.WriteString(fmt.Sprintf("\n✤ %s 서버\n", server))
@@ -252,10 +265,10 @@ func FormatAlts(queriedName string, siblings []CharacterInfo) string {
 			b.WriteString(fmt.Sprintf("[%s] %s (%s)\n", label, cg.char.CharacterName, cg.char.ItemAvgLevel))
 		}
 		b.WriteString("\n")
-		b.WriteString(fmt.Sprintf("• 6캐릭 합계: %s 골드\n", formatGold(top6Gold+top6Cathedral)))
-		b.WriteString(fmt.Sprintf("• 성당 제외: %s 골드\n", formatGold(top6Gold)))
-		b.WriteString(fmt.Sprintf("• 더보기 제외: %s 골드\n", formatGold(top6Net+top6CathedralNet)))
-		b.WriteString(fmt.Sprintf("• 더보기 제외(성당 제외): %s 골드", formatGold(top6Net)))
+		b.WriteString(fmt.Sprintf("• 6캐릭 합계: %s 골드\n", formatGold(top6With)))
+		b.WriteString(fmt.Sprintf("• 성당 제외: %s 골드\n", formatGold(top6No)))
+		b.WriteString(fmt.Sprintf("• 더보기 제외: %s 골드\n", formatGold(top6WithNet)))
+		b.WriteString(fmt.Sprintf("• 더보기 제외(성당 제외): %s 골드", formatGold(top6NoNet)))
 	}
 
 	return b.String()
