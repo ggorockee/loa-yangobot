@@ -280,21 +280,18 @@ func (c *Client) GetArmory(ctx context.Context, name string) (*GearData, error) 
 		return &cached, nil
 	}
 
-	if err := c.checkAPIRateLimit(ctx); err != nil {
+	resp, err := c.doWithFallback(ctx, func(keyCtx context.Context, key string) (*http.Request, error) {
+		endpoint := fmt.Sprintf("%s/armories/characters/%s", baseURL, url.PathEscape(name))
+		req, err := http.NewRequestWithContext(keyCtx, http.MethodGet, endpoint, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Authorization", "bearer "+key)
+		req.Header.Set("Accept", "application/json")
+		return req, nil
+	})
+	if err != nil {
 		return nil, err
-	}
-
-	endpoint := fmt.Sprintf("%s/armories/characters/%s", baseURL, url.PathEscape(name))
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-	req.Header.Set("Authorization", "bearer "+c.apiKey)
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("do request: %w", err)
 	}
 	defer resp.Body.Close()
 
