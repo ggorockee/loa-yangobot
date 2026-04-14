@@ -21,7 +21,8 @@ const (
 )
 
 // ErrAllKeysExhausted는 등록된 모든 API 키가 타임아웃/레이트리밋에 걸렸을 때 반환됩니다.
-var ErrAllKeysExhausted = errors.New("현재 요청이 너무 많습니다. 잠시 후 다시 이용해 주세요.")
+// ErrAllKeysExhausted는 등록된 모든 API 키가 타임아웃/레이트리밋에 걸렸을 때 반환됩니다.
+var ErrAllKeysExhausted = errors.New("현재 요청이 너무 많습니다. 잠시 후 다시 이용해 주세요")
 
 type Client struct {
 	keys   []string
