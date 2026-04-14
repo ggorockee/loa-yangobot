@@ -153,6 +153,14 @@ func (h *APIHandler) Handle(c fiber.Ctx) error {
 		}
 		return c.JSON(apiResponse{Text: lostark.FormatExpeditionRaid(name, siblings)})
 
+	case "alts":
+		siblings, err := h.loa.GetSiblings(ctx, name)
+		if err != nil {
+			log.Printf("api/alts error [%s]: %v", name, err)
+			return c.Status(fiber.StatusNotFound).SendString(err.Error())
+		}
+		return c.JSON(apiResponse{Text: lostark.FormatAlts(name, siblings)})
+
 	default:
 		return c.Status(fiber.StatusNotFound).SendString("unknown resource: " + resource + "\nusage: /api/v1/{character|armory|lopec|expedition}/{name}")
 	}
