@@ -205,11 +205,20 @@ func FormatAlts(queriedName string, siblings []CharacterInfo) string {
 			return parseItemLevel(chars[i].ItemAvgLevel) > parseItemLevel(chars[j].ItemAvgLevel)
 		})
 
-		// 캐릭터별 골드 계산 (성당 분리)
+		// 캐릭터별 골드 계산 — 가능한 레이드 중 골드 상위 3개만 선택
 		var results []charGoldResult
 		for _, ch := range chars {
 			lvl := parseItemLevel(ch.ItemAvgLevel)
 			raids := availableRaidsForChar(lvl)
+
+			// 클리어 골드 내림차순 → 상위 3레이드
+			sort.Slice(raids, func(i, j int) bool {
+				return raids[i].clearGold > raids[j].clearGold
+			})
+			if len(raids) > 3 {
+				raids = raids[:3]
+			}
+
 			var cg charGoldResult
 			cg.char = ch
 			for _, r := range raids {
@@ -225,17 +234,16 @@ func FormatAlts(queriedName string, siblings []CharacterInfo) string {
 			results = append(results, cg)
 		}
 
-		// 일반 골드 top6, 성당 골드 top3 (로스터당 3캐릭 제한)
-		var top6Gold, top6Net, top3Cathedral, top3CathedralNet int64
+		// 상위 6캐릭 합계 (성당은 top3 선택 시 자연스럽게 포함/제외됨)
+		var top6Gold, top6Net, top6Cathedral, top6CathedralNet int64
 		for i, cg := range results {
-			if i < 6 {
-				top6Gold += cg.baseGold
-				top6Net += cg.baseNet
+			if i >= 6 {
+				break
 			}
-			if i < 3 {
-				top3Cathedral += cg.cathedralGold
-				top3CathedralNet += cg.cathedralNet
-			}
+			top6Gold += cg.baseGold
+			top6Net += cg.baseNet
+			top6Cathedral += cg.cathedralGold
+			top6CathedralNet += cg.cathedralNet
 		}
 
 		b.WriteString(fmt.Sprintf("\n✤ %s 서버\n", server))
@@ -244,10 +252,10 @@ func FormatAlts(queriedName string, siblings []CharacterInfo) string {
 			b.WriteString(fmt.Sprintf("[%s] %s (%s)\n", label, cg.char.CharacterName, cg.char.ItemAvgLevel))
 		}
 		b.WriteString("\n")
-		b.WriteString(fmt.Sprintf("• 6캐릭 합계: %s 골드\n", formatGold(top6Gold)))
-		b.WriteString(fmt.Sprintf("• 성당 포함: %s 골드\n", formatGold(top6Gold+top3Cathedral)))
-		b.WriteString(fmt.Sprintf("• 더보기 제외: %s 골드\n", formatGold(top6Net)))
-		b.WriteString(fmt.Sprintf("• 더보기 제외(성당): %s 골드", formatGold(top6Net+top3CathedralNet)))
+		b.WriteString(fmt.Sprintf("• 6캐릭 합계: %s 골드\n", formatGold(top6Gold+top6Cathedral)))
+		b.WriteString(fmt.Sprintf("• 성당 제외: %s 골드\n", formatGold(top6Gold)))
+		b.WriteString(fmt.Sprintf("• 더보기 제외: %s 골드\n", formatGold(top6Net+top6CathedralNet)))
+		b.WriteString(fmt.Sprintf("• 더보기 제외(성당 제외): %s 골드", formatGold(top6Net)))
 	}
 
 	return b.String()
