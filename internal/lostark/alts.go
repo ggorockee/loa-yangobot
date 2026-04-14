@@ -162,29 +162,30 @@ func FormatAlts(queriedName string, siblings []CharacterInfo) string {
 		})
 
 		// 골드 계산
+		// clearGold: 클리어 시 수령 골드 (gross)
+		// netGold:   클리어 골드 - 더보기 비용 = 순이익 (더보기 제외)
 		var results []charGoldResult
-		var totalGold, totalClear int64
+		var totalClear int64
 		for _, ch := range chars {
 			lvl := parseItemLevel(ch.ItemAvgLevel)
 			raids := availableRaidsForChar(lvl)
-			var withMore, clearOnly int64
+			var clearGold, netGold int64
 			for _, r := range raids {
-				withMore += r.clearGold + r.moreGold
-				clearOnly += r.clearGold
+				clearGold += r.clearGold
+				netGold += r.clearGold - r.moreGold
 			}
-			results = append(results, charGoldResult{char: ch, withMore: withMore, clearOnly: clearOnly})
-			totalGold += withMore
-			totalClear += clearOnly
+			results = append(results, charGoldResult{char: ch, withMore: clearGold, clearOnly: netGold})
+			totalClear += clearGold
 		}
 
 		// 상위 6캐릭 합계
-		var top6Gold, top6Clear int64
+		var top6Clear, top6Net int64
 		for i, cg := range results {
 			if i >= 6 {
 				break
 			}
-			top6Gold += cg.withMore
-			top6Clear += cg.clearOnly
+			top6Clear += cg.withMore
+			top6Net += cg.clearOnly
 		}
 
 		b.WriteString(fmt.Sprintf("\n✤ %s 서버\n", server))
@@ -192,9 +193,9 @@ func FormatAlts(queriedName string, siblings []CharacterInfo) string {
 			label := classLabel(cg.char.CharacterClassName)
 			b.WriteString(fmt.Sprintf("[%s] %s (%s)\n", label, cg.char.CharacterName, cg.char.ItemAvgLevel))
 		}
-		b.WriteString(fmt.Sprintf("\n• 6캐릭 합계: %s 골드\n", formatGold(top6Gold)))
-		b.WriteString(fmt.Sprintf("• 전체 합계: %s 골드\n", formatGold(totalGold)))
-		b.WriteString(fmt.Sprintf("• 더보기 제외: %s 골드", formatGold(top6Clear)))
+		b.WriteString(fmt.Sprintf("\n• 6캐릭 합계: %s 골드\n", formatGold(top6Clear)))
+		b.WriteString(fmt.Sprintf("• 전체 합계: %s 골드\n", formatGold(totalClear)))
+		b.WriteString(fmt.Sprintf("• 더보기 제외: %s 골드", formatGold(top6Net)))
 	}
 
 	return b.String()
