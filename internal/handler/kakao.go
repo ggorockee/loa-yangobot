@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"log"
 	"sync"
+	"time"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/woohalabs2/yangobot/internal/command"
@@ -106,7 +108,9 @@ func (h *KakaoHandler) Handle(c fiber.Ctx) error {
 		}()
 		go func() {
 			defer wg.Done()
-			lopecData, _ = h.lopec.GetSpecPoint(ctx, name)
+			lopecCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+			defer cancel()
+			lopecData, _ = h.lopec.GetSpecPoint(lopecCtx, name)
 		}()
 		wg.Wait()
 

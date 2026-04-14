@@ -1,10 +1,12 @@
 package lostark
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -17,7 +19,7 @@ import (
 const (
 	baseURL    = "https://developer-lostark.game.onstove.com"
 	cacheTTL   = 5 * time.Minute
-	keyTimeout = 1 * time.Second // 키 하나당 타임아웃
+	keyTimeout = 1 * time.Second // 키 하나당 타임아웃 (429·무응답 시 다음 키로 폴백)
 )
 
 // ErrAllKeysExhausted는 등록된 모든 API 키가 타임아웃/레이트리밋에 걸렸을 때 반환됩니다.
@@ -42,7 +44,9 @@ func NewClient(keys []string, c *cache.Redis) *Client {
 }
 
 // doWithFallback은 round-robin으로 시작 키를 선택한 뒤 순환 폴백합니다.
-// 키당 타임아웃(keyTimeout) 초과 또는 429 응답 시 다음 키로 넘어갑니다.
+// 키당 keyTimeout 초과 또는 429 응답 시 다음 키로 넘어갑니다.
+// 성공한 키는 body를 메모리에 완전히 읽은 뒤 context를 취소합니다.
+// (cancel을 헤더 수신 직후에 호출하면 대형 응답의 body 스트림이 끊길 수 있음)
 // 모든 키 소진 시 ErrAllKeysExhausted를 반환합니다.
 func (c *Client) doWithFallback(ctx context.Context, buildReq func(ctx context.Context, key string) (*http.Request, error)) (*http.Response, error) {
 	n := uint64(len(c.keys))
@@ -57,16 +61,27 @@ func (c *Client) doWithFallback(ctx context.Context, buildReq func(ctx context.C
 			return nil, err
 		}
 		resp, err := c.http.Do(req)
-		cancel()
 		if err != nil {
+			cancel()
 			log.Printf("[lostark] key[%d] failed: %v", idx+1, err)
 			continue
 		}
 		if resp.StatusCode == http.StatusTooManyRequests {
 			resp.Body.Close()
+			cancel()
 			log.Printf("[lostark] key[%d] rate limited (429)", idx+1)
 			continue
 		}
+		// body를 keyCtx가 살아있는 동안 모두 읽어 메모리에 버퍼링한 뒤 cancel.
+		// cancel을 먼저 호출하면 transport가 연결을 닫아 대형 body 읽기가 중단됨.
+		body, readErr := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		cancel()
+		if readErr != nil {
+			log.Printf("[lostark] key[%d] body read failed: %v", idx+1, readErr)
+			continue
+		}
+		resp.Body = io.NopCloser(bytes.NewReader(body))
 		return resp, nil
 	}
 	return nil, ErrAllKeysExhausted
