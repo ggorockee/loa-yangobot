@@ -180,9 +180,6 @@ type charGoldResult struct {
 	boundNet   int64 // 귀속 골드 - 더보기
 }
 
-func (c charGoldResult) totalClear() int64 { return c.tradeGold + c.boundGold }
-func (c charGoldResult) totalNet() int64   { return c.tradeNet + c.boundNet }
-
 // FormatAlts는 원정대 부캐 골드 계산 결과를 포맷합니다.
 // queriedName: 조회에 사용한 캐릭터 이름 (헤더에 표시)
 func FormatAlts(queriedName string, siblings []CharacterInfo) string {
