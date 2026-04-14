@@ -229,17 +229,16 @@ func FormatAlts(queriedName string, siblings []CharacterInfo) string {
 			results = append(results, cg)
 		}
 
-		// 상위 6캐릭 합계
-		var top6Trade, top6Bound, top6TradeNet, top6BoundNet int64
-		var totalTrade, totalBound int64
+		// 합계: 일반 골드 top6, 귀속 골드 top3 (로스터당 3캐릭 제한)
+		var top6Gold, top6Net, top3Bound, top3BoundNet int64
 		for i, cg := range results {
-			totalTrade += cg.tradeGold
-			totalBound += cg.boundGold
 			if i < 6 {
-				top6Trade += cg.tradeGold
-				top6Bound += cg.boundGold
-				top6TradeNet += cg.tradeNet
-				top6BoundNet += cg.boundNet
+				top6Gold += cg.tradeGold
+				top6Net += cg.tradeNet
+			}
+			if i < 3 {
+				top3Bound += cg.boundGold
+				top3BoundNet += cg.boundNet
 			}
 		}
 
@@ -249,12 +248,10 @@ func FormatAlts(queriedName string, siblings []CharacterInfo) string {
 			b.WriteString(fmt.Sprintf("[%s] %s (%s)\n", label, cg.char.CharacterName, cg.char.ItemAvgLevel))
 		}
 		b.WriteString("\n")
-		b.WriteString(fmt.Sprintf("• 6캐릭 유통: %s 골드\n", formatGold(top6Trade)))
-		b.WriteString(fmt.Sprintf("• 6캐릭 귀속: %s 골드\n", formatGold(top6Bound)))
-		b.WriteString(fmt.Sprintf("• 전체 유통: %s 골드\n", formatGold(totalTrade)))
-		b.WriteString(fmt.Sprintf("• 전체 귀속: %s 골드\n", formatGold(totalBound)))
-		b.WriteString(fmt.Sprintf("• 더보기 제외(유통): %s 골드\n", formatGold(top6TradeNet)))
-		b.WriteString(fmt.Sprintf("• 더보기 제외(귀속): %s 골드", formatGold(top6BoundNet)))
+		b.WriteString(fmt.Sprintf("• 6캐릭 합계: %s 골드\n", formatGold(top6Gold)))
+		b.WriteString(fmt.Sprintf("• 귀속(3캐릭): %s 골드\n", formatGold(top3Bound)))
+		b.WriteString(fmt.Sprintf("• 더보기 제외: %s 골드\n", formatGold(top6Net)))
+		b.WriteString(fmt.Sprintf("• 더보기 제외(귀속): %s 골드", formatGold(top3BoundNet)))
 	}
 
 	return b.String()
