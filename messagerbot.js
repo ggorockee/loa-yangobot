@@ -54,6 +54,12 @@ function response(room, msg, sender, isGroupChat, replier, imageDB, packageName)
     return;
   }
 
+  m = msg.match(/^[.·](?:부캐|ㅂㅋ)\s+(.+)/);
+  if (m) {
+    asyncCall(API_BASE + "/alts/" + encodeURIComponent(m[1].trim()), replier, "캐릭터를 찾을 수 없습니다.");
+    return;
+  }
+
   // .ㄱㅁ8 49000 또는 .ㄱㅁ8 아드레날린 — 분배금 계산 (숫자: 직접 입력, 텍스트: 거래소 시세 조회)
   m = msg.match(/^[.·]ㄱㅁ([48])\s+(.+)/);
   if (m) {
