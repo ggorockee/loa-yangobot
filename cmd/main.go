@@ -14,9 +14,14 @@ import (
 )
 
 func main() {
-	loaAPIKey := os.Getenv("LOSTARK_API_KEY")
-	if loaAPIKey == "" {
-		log.Fatal("LOSTARK_API_KEY is required")
+	var loaKeys []string
+	for _, k := range []string{"LOSTARK_API_KEY_1", "LOSTARK_API_KEY_2", "LOSTARK_API_KEY_3"} {
+		if v := os.Getenv(k); v != "" {
+			loaKeys = append(loaKeys, v)
+		}
+	}
+	if len(loaKeys) == 0 {
+		log.Fatal("LOSTARK_API_KEY_1/2/3 중 하나 이상이 필요합니다")
 	}
 	redisAddr := os.Getenv("REDIS_ADDR")
 	if redisAddr == "" {
@@ -24,7 +29,7 @@ func main() {
 	}
 
 	redisCache := cache.New(redisAddr)
-	loaClient := lostark.NewClient(loaAPIKey, redisCache)
+	loaClient := lostark.NewClient(loaKeys, redisCache)
 	lopecClient := lopec.NewClient(redisCache)
 	limiter := ratelimit.New(10, 100) // 10 req/s per user, burst 100
 

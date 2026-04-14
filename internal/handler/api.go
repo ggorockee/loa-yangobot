@@ -1,11 +1,14 @@
 package handler
 
 import (
+	"context"
+	"errors"
 	"log"
 	"net/url"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/woohalabs2/yangobot/internal/distribute"
@@ -13,6 +16,16 @@ import (
 	"github.com/woohalabs2/yangobot/internal/lostark"
 	"github.com/woohalabs2/yangobot/internal/ratelimit"
 )
+
+// loaError는 LoA API 오류를 HTTP 응답으로 변환합니다.
+// ErrAllKeysExhausted이면 200 + 안내 메시지, 그 외는 404를 반환합니다.
+func loaError(c fiber.Ctx, resource string, name string, err error) error {
+	if errors.Is(err, lostark.ErrAllKeysExhausted) {
+		return c.JSON(apiResponse{Text: lostark.ErrAllKeysExhausted.Error()})
+	}
+	log.Printf("api/%s error [%s]: %v", resource, name, err)
+	return c.Status(fiber.StatusNotFound).SendString(err.Error())
+}
 
 // HandleDistribute는 GET /api/v1/distribute/:n/:query 엔드포인트입니다.
 // :query가 숫자이면 직접 금액, 텍스트이면 각인서 이름으로 거래소 조회합니다.
@@ -104,8 +117,7 @@ func (h *APIHandler) Handle(c fiber.Ctx) error {
 	case "character":
 		info, err := h.loa.GetCharacter(ctx, name)
 		if err != nil {
-			log.Printf("api/character error [%s]: %v", name, err)
-			return c.Status(fiber.StatusNotFound).SendString(err.Error())
+			return loaError(c, "character", name, err)
 		}
 		return c.JSON(apiResponse{Text: info.Format()})
 
@@ -123,13 +135,14 @@ func (h *APIHandler) Handle(c fiber.Ctx) error {
 		}()
 		go func() {
 			defer wg.Done()
-			lopecData, _ = h.lopec.GetSpecPoint(ctx, name)
+			lopecCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+			defer cancel()
+			lopecData, _ = h.lopec.GetSpecPoint(lopecCtx, name)
 		}()
 		wg.Wait()
 
 		if gearErr != nil {
-			log.Printf("api/armory error [%s]: %v", name, gearErr)
-			return c.Status(fiber.StatusNotFound).SendString(gearErr.Error())
+			return loaError(c, "armory", name, gearErr)
 		}
 		if lopecData != nil {
 			gear.SecondClass = lopecData.SecondClass
@@ -148,16 +161,14 @@ func (h *APIHandler) Handle(c fiber.Ctx) error {
 	case "expedition":
 		siblings, err := h.loa.GetSiblings(ctx, name)
 		if err != nil {
-			log.Printf("api/expedition error [%s]: %v", name, err)
-			return c.Status(fiber.StatusNotFound).SendString(err.Error())
+			return loaError(c, "expedition", name, err)
 		}
 		return c.JSON(apiResponse{Text: lostark.FormatExpeditionRaid(name, siblings)})
 
 	case "alts":
 		siblings, err := h.loa.GetSiblings(ctx, name)
 		if err != nil {
-			log.Printf("api/alts error [%s]: %v", name, err)
-			return c.Status(fiber.StatusNotFound).SendString(err.Error())
+			return loaError(c, "alts", name, err)
 		}
 		return c.JSON(apiResponse{Text: lostark.FormatAlts(name, siblings)})
 
