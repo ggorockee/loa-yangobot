@@ -112,9 +112,9 @@ var altRaidGroups = []struct {
 	}},
 }
 
-// bestRaidsForChar는 캐릭터 아이템 레벨 기준으로 각 레이드 그룹에서
-// 최상위 입장 가능 티어를 골라 (클리어골드+더보기골드) 내림차순으로 정렬한 뒤 상위 3개를 반환합니다.
-func bestRaidsForChar(itemLevel float64) []raidEntry {
+// availableRaidsForChar는 캐릭터 아이템 레벨 기준으로 각 레이드 그룹에서
+// 입장 가능한 최상위 티어를 모두 반환합니다. 제한 없이 전체 레이드 포함.
+func availableRaidsForChar(itemLevel float64) []raidEntry {
 	var available []raidEntry
 	for _, group := range altRaidGroups {
 		for _, e := range group.entries {
@@ -123,12 +123,6 @@ func bestRaidsForChar(itemLevel float64) []raidEntry {
 				break
 			}
 		}
-	}
-	sort.Slice(available, func(i, j int) bool {
-		return (available[i].clearGold + available[i].moreGold) > (available[j].clearGold + available[j].moreGold)
-	})
-	if len(available) > 3 {
-		available = available[:3]
 	}
 	return available
 }
@@ -172,7 +166,7 @@ func FormatAlts(queriedName string, siblings []CharacterInfo) string {
 		var totalGold, totalClear int64
 		for _, ch := range chars {
 			lvl := parseItemLevel(ch.ItemAvgLevel)
-			raids := bestRaidsForChar(lvl)
+			raids := availableRaidsForChar(lvl)
 			var withMore, clearOnly int64
 			for _, r := range raids {
 				withMore += r.clearGold + r.moreGold
